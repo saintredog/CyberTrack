@@ -13,13 +13,18 @@ Rubric (100 points):
 - Completeness, 30: each of the six sections is worth 5. Full marks at the
   section's minimum length, 2 points if it is started but short, 0 if empty.
 - Timeline, 15: at least two distinct time-stamped (HH:MM) entries.
-- IOC coverage, 30: share of the alert's indicators (IPs, domains, hosts,
-  processes, users pulled from the raw event) mentioned anywhere in the report.
+- IOC coverage, 20: share of the attacker's indicators (external IPs, domains,
+  URLs, sender addresses, malicious files and tools, attacker-created accounts)
+  mentioned anywhere in the report. Stock OS and Office binaries are not IOCs.
+- Affected assets, 10: share of the victim hosts, internal IPs and accounts
+  named. They belong under Scope & impact, never on an IOC or block list.
 - Recommendations, 25: cover at least two of the detection's response-playbook
   actions, matched by keyword overlap.
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -31,7 +36,7 @@ from sqlalchemy.orm import Session
 
 from .. import SEVERITY_ORDER
 from ..models import CASE_STAGES, Alert, Case, CaseNote, CaseTask
-from .fields import extract_fields
+from .fields import HOST, extract_fields
 
 # ----------------------------------------------------------------- lifecycle
 
@@ -83,13 +88,15 @@ REPORT_SECTIONS = [
     ),
     ReportSection(
         "scope_impact", "Scope & impact", 60,
-        "Which hosts, accounts and data were affected, how far it spread, and what that means for the business.",
-        "Hosts: ...  Accounts: ...  Data at risk: ...  Business impact: ...",
+        "Name each affected host, internal IP and account, how far it spread, and what that means for the business.",
+        "Hosts: WS-0000, 10.20.x.x  Accounts: ...  Data at risk: ...  Business impact: ...",
     ),
     ReportSection(
         "iocs", "Indicators of compromise", 20,
-        "Every indicator from the evidence: IPs, domains, hosts, processes and accounts. Defanged forms such as 203.0.113[.]7 count.",
-        "203.0.113[.]7\nexample-bad[.]example\nWS-0000\nrundll32.exe\naccount name",
+        "Attacker-controlled indicators only: external IPs, domains, URLs, sender addresses, malicious files and tools, "
+        "attacker-created accounts. Victim hosts and accounts go under Scope & impact, and stock binaries such as "
+        "cmd.exe are not IOCs. Defanged forms such as 203.0.113[.]7 count.",
+        "203.0.113[.]7\nhxxps://login-portal[.]example/auth\nit-support@login-portal[.]example\nInvoice_0000.docm",
         rows=5,
     ),
     ReportSection(
@@ -110,10 +117,11 @@ SECTION_POINTS = 5        # x6 sections = 30
 SECTION_PARTIAL = 2
 TIMELINE_POINTS = 15
 TIMELINE_MIN = 2
-IOC_POINTS = 30
+IOC_POINTS = 20
+ASSET_POINTS = 10
 PLAYBOOK_POINTS = 25
 PLAYBOOK_MIN = 2
-MAX_SCORE = SECTION_POINTS * len(REPORT_SECTIONS) + TIMELINE_POINTS + IOC_POINTS + PLAYBOOK_POINTS
+MAX_SCORE = SECTION_POINTS * len(REPORT_SECTIONS) + TIMELINE_POINTS + IOC_POINTS + ASSET_POINTS + PLAYBOOK_POINTS
 assert MAX_SCORE == 100
 
 NOTE_MAX = 4000
@@ -218,7 +226,8 @@ def close_blockers(case: Case) -> list[str]:
     return out
 
 
-def close_case(case: Case, note: str, now: datetime) -> None:
+def close_case(case: Case, note: str, now: datetime, on: date | None = None) -> None:
+    """Close the case. `on` is the app's day (db.today()), which a replayed day can set apart from `now`."""
     blockers = close_blockers(case)
     if blockers:
         raise ValueError("Can't close yet: " + "; ".join(blockers) + ".")
@@ -227,6 +236,7 @@ def close_case(case: Case, note: str, now: datetime) -> None:
         raise ValueError("Add a short closing note: why was this escalation a false positive?")
     case.status = "closed"
     case.closed_at = now
+    case.closed_on = on or now.date()
     case.closing_note = note[:NOTE_MAX]
 
 
@@ -275,40 +285,132 @@ def score_band(score: int | None) -> dict:
 
 # ------------------------------------------------------------------- grading
 
-IOC_KINDS = ("ip", "domain", "host", "process", "user")
 OWN_DOMAIN = "corp.example"  # the organization's own domain is not an indicator
+# Signed OS and Office binaries. They appear in process chains, but blocking or
+# hunting on them is wrong, so they are never IOCs on their own.
+STOCK_BINARIES = frozenset(
+    "cmd.exe net.exe net1.exe powershell.exe pwsh.exe rundll32.exe regsvr32.exe mshta.exe wscript.exe cscript.exe "
+    "w3wp.exe explorer.exe mmc.exe svchost.exe winword.exe excel.exe outlook.exe ccmexec.exe".split()
+)
+_RFC1918 = re.compile(r"^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)")
+
+Pair = tuple[str, str]  # (kind, value), e.g. ("ip", "203.0.113.7")
 
 
-def alert_iocs(raw_log: str) -> list[tuple[str, str]]:
-    """The indicators a good report should mention, as (kind, value) pairs.
+@dataclass(frozen=True)
+class EvidenceKey:
+    """What a good report on an alert cites.
 
-    Pulled from the raw event with extract_fields. Users are reduced to the
-    account name (dchen@corp.example -> dchen), the company's own domain is
-    dropped, and when one kind has more than three values (a port sweep's
-    long list of targets) only the repeated ones are kept.
+    `iocs` are attacker-controlled: infrastructure, malicious files and tools,
+    accounts the attacker created. `assets` are what was hit: victim hosts,
+    internal IPs, compromised accounts. Keeping them apart matters because an
+    IOC list feeds block lists and hunts.
     """
-    fields = extract_fields(raw_log)
-    out: list[tuple[str, str]] = []
+
+    iocs: list[Pair]
+    assets: list[Pair]
+
+
+def _grab(pattern: str, text: str) -> str | None:
+    m = re.search(pattern, text or "", re.M)
+    return m.group(1) if m else None
+
+
+def _stage_two(raw: str) -> str | None:
+    """The script a PowerShell -enc download cradle fetches (base64, then UTF-16LE)."""
+    blob = _grab(r"-enc (\S+)", raw)
+    if not blob:
+        return None
+    try:
+        decoded = base64.b64decode(blob, validate=True).decode("utf-16-le")
+    except (binascii.Error, UnicodeDecodeError):
+        return None
+    return _grab(r"/([\w.-]+\.ps1)\b", decoded)
+
+
+# One key per detection, read from the stored raw event (and enrichment, where the
+# workstation name lives), so alerts generated before this existed grade the same way.
+# Only the malicious variants are graded: a false-positive case closes with a note.
+_KEYS = {
+    "auth_bruteforce": lambda raw, enr: (
+        [("ip", _grab(r"Accepted password for \S+ from (\S+)", raw))],
+        [("host", _grab(f"({HOST})", raw)), ("account", _grab(r"Accepted password for (\S+) from", raw))],
+    ),
+    "beaconing": lambda raw, enr: (
+        # rundll32.exe is a stock binary; the C2 domain is the indicator.
+        [("domain", _grab(r"CONNECT ([\w.-]+):\d+", raw))],
+        [("host", _grab(f"({HOST})", enr.get("Host", ""))), ("ip", _grab(r"^\S+ \S+ (\S+) CONNECT", raw))],
+    ),
+    "powershell_encoded": lambda raw, enr: (
+        # The lure document, the second-stage script inside the -enc blob, and its server.
+        [("ip", _grab(r"\bdst=([\d.]+)", raw)), ("file", _grab(r"([\w.-]+\.docm)\b", raw)), ("file", _stage_two(raw))],
+        [("host", _grab(r"\bhost=(\S+)", raw)), ("account", _grab(r"\buser=CORP\\(\S+)", raw))],
+    ),
+    "internal_scan": lambda raw, enr: (
+        # A sweep log holds no attacker infrastructure: the scanning host is the compromised asset.
+        [],
+        [("host", _grab(f"({HOST})", enr.get("Source", ""))), ("ip", _grab(r"^[\d.]+\tC\d+\t(\S+)\t", raw))],
+    ),
+    "phishing_click": lambda raw, enr: (
+        [("domain", _grab(r"<[^<>@\s]+@([^<>\s]+)>", raw)), ("email", _grab(r"<([^<>@\s]+@[^<>\s]+)>", raw)),
+         ("url", _grab(r"\bGET https?://(\S+)", raw))],
+        [("host", _grab(r"^\[proxy\] \S+ (\S+) ", raw)), ("account", _grab(r"\bto=([\w.-]+)@", raw))],
+    ),
+    "impossible_travel": lambda raw, enr: (
+        # The sign-in that skipped MFA, not the user's own MFA-satisfied session, plus the forwarding address.
+        [("ip", _grab(r"\bip=(\S+)[^\n]*\bmfa=(?!satisfied)", raw)), ("email", _grab(r"\bforwardTo=(\S+)", raw))],
+        [("account", _grab(r"\buser=([\w.-]+)@", raw))],
+    ),
+    "data_exfil": lambda raw, enr: (
+        # Destination plus the tools and archive the attacker staged in ProgramData.
+        [("domain", _grab(r"\bdst=([\w.-]+\.example)", raw))]
+        + [("file", f) for f in re.findall(r"C:\\ProgramData\\([\w.-]+\.(?:exe|7z))\b", raw)],
+        [("host", _grab(r"\bhost=(\S+)", raw)), ("ip", _grab(r"\bsrc=(\S+)", raw)),
+         ("account", _grab(r"\buser=CORP\\(\S+)", raw))],
+    ),
+    "new_admin_account": lambda raw, enr: (
+        # The backdoor account is the indicator; w3wp.exe, cmd.exe and net.exe are stock binaries.
+        [("account", _grab(r"New Account: (\S+)", raw))],
+        [("host", _grab(f"({HOST})", raw))],
+    ),
+}
+
+
+def _generic_key(raw: str, enr: dict) -> tuple[list[Pair], list[Pair]]:
+    """For an event from an unknown detection: sort the extracted fields by who controls them."""
+    fields = extract_fields(raw)
+
+    def values(kind: str) -> list[str]:
+        common = (fields.get(kind) or Counter()).most_common()
+        if len(common) > 3:  # a sweep's long list of one-off targets: keep the repeated ones
+            common = [(v, c) for v, c in common if c >= 2] or common[:3]
+        return [v for v, _ in common]
+
+    iocs: list[Pair] = [("ip", ip) for ip in values("ip") if not _RFC1918.match(ip)]
+    iocs += [("domain", d) for d in values("domain") if d != OWN_DOMAIN and not d.endswith("." + OWN_DOMAIN)]
+    iocs += [("file", f) for f in values("file")]
+    iocs += [("process", p) for p in values("process") if p.lower() not in STOCK_BINARIES]
+    assets: list[Pair] = [("ip", ip) for ip in values("ip") if _RFC1918.match(ip)]
+    assets += [("host", h) for h in values("host")]
+    assets += [("account", u.split("@")[0]) for u in values("user")]
+    return iocs, assets
+
+
+def _dedupe(pairs: list[tuple[str, str | None]]) -> list[Pair]:
+    out: list[Pair] = []
     seen: set[str] = set()
-    for kind in IOC_KINDS:
-        counter = fields.get(kind)
-        if not counter:
-            continue
-        if kind == "user":
-            merged: Counter = Counter()
-            for v, c in counter.items():
-                merged[v.split("@")[0]] += c
-            counter = merged
-        values = counter.most_common()
-        if kind == "domain":
-            values = [(v, c) for v, c in values if v != OWN_DOMAIN and not v.endswith("." + OWN_DOMAIN)]
-        if len(values) > 3:
-            values = [(v, c) for v, c in values if c >= 2] or values[:3]
-        for v, _ in values:
-            if v.lower() not in seen:
-                seen.add(v.lower())
-                out.append((kind, v))
+    for kind, value in pairs:
+        if value and value.lower() not in seen:
+            seen.add(value.lower())
+            out.append((kind, value))
     return out
+
+
+def evidence_key(alert: Alert) -> EvidenceKey:
+    """The attacker IOCs and the affected assets a good report on this alert cites."""
+    build = _KEYS.get(alert.scenario or "", _generic_key)
+    iocs, assets = build(alert.raw_log or "", alert.enrichment or {})
+    return EvidenceKey(_dedupe(iocs), _dedupe(assets))
 
 
 _REFANG = re.compile(r"\[\.\]|\(\.\)|\{\.\}|\[dot\]|\(dot\)")
@@ -316,7 +418,7 @@ _REFANG = re.compile(r"\[\.\]|\(\.\)|\{\.\}|\[dot\]|\(dot\)")
 
 def _refang(text: str) -> str:
     text = _REFANG.sub(".", text.lower())
-    return text.replace("hxxp", "http").replace("[:]", ":")
+    return text.replace("hxxp", "http").replace("[:]", ":").replace("[@]", "@").replace("[at]", "@")
 
 
 def _mentioned(value: str, text: str) -> bool:
@@ -390,6 +492,19 @@ def _row(criterion: str, group: str, earned: int, possible: int, tip: str) -> di
     return {"criterion": criterion, "group": group, "earned": int(earned), "possible": possible, "tip": tip}
 
 
+def _coverage_row(criterion: str, possible: int, text: str, wanted: list[Pair], noun: str, verb: str,
+                  if_none: str, hint: str = "") -> dict:
+    """Points in proportion to how many of `wanted` the report mentions."""
+    if not wanted:
+        return _row(criterion, "Evidence", possible, possible, if_none)
+    found, missing = ioc_coverage(text, wanted)
+    tip = f"{len(found)} of {len(wanted)} {noun}{'' if len(wanted) == 1 else 's'} {verb}."
+    if missing:
+        listed = ", ".join(f"{v} ({k})" for k, v in missing[:6]) + (f" +{len(missing) - 6} more" if len(missing) > 6 else "")
+        tip += f" Missing: {listed}.{hint}"
+    return _row(criterion, "Evidence", round(possible * len(found) / len(wanted)), possible, tip)
+
+
 def _quote_list(items: list[str], limit: int = 4) -> str:
     shown = "; ".join(f'"{s}"' for s in items[:limit])
     return shown + (f" (+{len(items) - limit} more)" if len(items) > limit else "")
@@ -421,18 +536,15 @@ def grade_report(report: Mapping[str, str], alert: Alert) -> tuple[int, list[dic
                          "Start each line with a time like 03:14. The raw event has the timestamps."))
 
     full_text = "\n".join(report.get(k) or "" for k in SECTION_KEYS)
-    iocs = alert_iocs(alert.raw_log)
-    found, missing = ioc_coverage(full_text, iocs)
-    if not iocs:
-        rows.append(_row("IOC coverage", "Evidence", IOC_POINTS, IOC_POINTS, "No extractable indicators in this event."))
-    else:
-        earned = round(IOC_POINTS * len(found) / len(iocs))
-        if missing:
-            listed = ", ".join(f"{v} ({k})" for k, v in missing[:6]) + (f" +{len(missing) - 6} more" if len(missing) > 6 else "")
-            tip = f"{len(found)} of {len(iocs)} indicators referenced. Missing: {listed}."
-        else:
-            tip = f"All {len(iocs)} indicators referenced."
-        rows.append(_row("IOC coverage", "Evidence", earned, IOC_POINTS, tip))
+    key = evidence_key(alert)
+    rows.append(_coverage_row(
+        "IOC coverage", IOC_POINTS, full_text, key.iocs, "attacker indicator", "referenced",
+        "No attacker infrastructure or artifacts in this event; the affected assets carry the evidence.",
+    ))
+    rows.append(_coverage_row(
+        "Affected assets", ASSET_POINTS, full_text, key.assets, "affected asset", "named",
+        "No specific hosts or accounts in this event.", " Name them under Scope & impact, not as IOCs.",
+    ))
 
     playbook = list(alert.response or [])
     need = min(PLAYBOOK_MIN, len(playbook))

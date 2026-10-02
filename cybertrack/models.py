@@ -94,6 +94,9 @@ class Case(Base):
     stage: Mapped[str] = mapped_column(String(16), default="detection")
     status: Mapped[str] = mapped_column(String(16), default="open", index=True)  # open | closed
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # The app's day at closing (db.today(), so a replayed day dates it like triage and study logs).
+    # None for cases closed before this column existed; use closed_at's date for those.
+    closed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     closing_note: Mapped[str] = mapped_column(Text, default="")
     # Escalated, but the alert's ground truth is benign.
     false_positive: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -19,7 +19,9 @@ IP = r"\b(?:\d{1,3}\.){3}\d{1,3}\b"
 HOST = r"\b(?:WS-\d{3,4}|srv-[a-z]+-\d{2}|vulnscan-\d{2})\b"
 DOMAIN = r"\b[a-z0-9][a-z0-9.-]*\.example\b"
 PROC = r"\b[\w.-]+\.(?:exe|dll|ps1|docm|7z)\b"  # highlight both processes and files
-EXE = r"\b[\w.-]+\.(?:exe|dll)\b"
+# A process image starts a token: after a path backslash, "=", or whitespace. Never a URL path
+# segment such as /owa/auth/owaauth.dll, which is a page on a web server, not a process.
+EXE = r"(?<![\w./-])[\w.-]+\.(?:exe|dll)\b"
 FILE = r"\b[\w.-]+\.(?:ps1|docm|7z)\b"
 ISO_TS = r"\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}Z?\b"
 SYSLOG_TS = r"^[A-Z][a-z]{2} \d{2} \d{2}:\d{2}:\d{2}"

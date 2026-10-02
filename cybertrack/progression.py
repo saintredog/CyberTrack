@@ -126,13 +126,14 @@ def xp_events(session: Session, limit: int | None = None) -> list[XPEvent]:
 
     for c in session.scalars(take(
         select(Case).where(Case.status == "closed", Case.closed_at.is_not(None))
-        .order_by(Case.closed_at.desc(), Case.id.desc())
+        .order_by(func.coalesce(Case.closed_on, func.date(Case.closed_at)).desc(), Case.closed_at.desc(), Case.id.desc())
     )):
         if c.false_positive:
             label, detail = "Closed false positive", f"{c.ref} {c.title}"
         else:
             label, detail = "Closed incident", f"{c.ref} {c.title} · report {c.report_score or 0}/100"
-        events.append(XPEvent("case", case_xp(c), c.closed_at.date(), label, detail, c.closed_at, c.id))
+        on = c.closed_on or c.closed_at.date()  # closed_on is None for cases closed before it existed
+        events.append(XPEvent("case", case_xp(c), on, label, detail, c.closed_at, c.id))
 
     if limit is None:
         return sorted(events, key=lambda e: e.sort_key, reverse=True)

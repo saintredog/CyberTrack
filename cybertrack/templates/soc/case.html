@@ -73,7 +73,7 @@
           <span class="check fp-dot">{{ ui.icon('alert', 'sm') }}</span>
           <div style="flex:1;min-width:0">
             <div class="big">False positive</div>
-            <div style="color:var(--ink-2);font-size:13px">Ground truth for alert #{{ '%05d'|format(alert.id) }} is <b>benign</b>. The escalation opened a case for expected activity, which costs IR time. No incident report is needed: record why it was benign, then close the case.</div>
+            <div style="color:var(--ink-2);font-size:13px">Ground truth for alert #{{ '%05d'|format(alert.id) }} is <b>benign</b>. The escalation opened a case for expected activity, which costs IR time. {% if is_open %}No incident report is needed: record why it was benign, then close the case.{% else %}No incident report was needed; the closing note above records why it was benign.{% endif %}</div>
           </div>
         </div>
         <div class="vb">
@@ -109,7 +109,7 @@
             <div style="min-width:0">
               <div class="band {{ band.tone }}">{{ band.label }}</div>
               <div class="rs">{{ case.report_score }} of 100 points</div>
-              <div class="hint-line">Deterministic rubric. Resubmit as often as you like; the latest submission counts.</div>
+              <div class="hint-line">Deterministic rubric. {{ 'Resubmit as often as you like; the latest submission counts.' if is_open else 'Final grade: the case is closed.' }}</div>
             </div>
           </div>
           <div style="overflow-x:auto;min-width:0">
@@ -157,7 +157,7 @@
           {% endfor %}
           <div class="report-actions">
             <button class="btn primary" type="submit">{{ ui.icon('check', 'sm') }}{{ 'Resubmit for grading' if case.report_submitted_at else 'Submit for grading' }}</button>
-            <span class="hint-line" style="margin:0">Scored on completeness, a time-stamped timeline, IOC coverage, and playbook-aligned recommendations.</span>
+            <span class="hint-line" style="margin:0">Scored on completeness, a time-stamped timeline, IOC coverage, affected assets, and playbook-aligned recommendations.</span>
           </div>
         </form>
         {% else %}

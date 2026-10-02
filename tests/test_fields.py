@@ -19,6 +19,14 @@ def test_extracts_core_fields():
     assert "80" in f["port"]
 
 
+def test_url_path_is_not_a_process():
+    raw = (
+        "[proxy] 2026-10-02T09:04:00Z WS-0523 POST https://login-portal.example/owa/auth/owaauth.dll 302\n"
+        "2026-10-02T09:05:00Z EDR ProcessCreate image=C:\\Windows\\System32\\rundll32.exe proc=AVAgent.exe"
+    )
+    assert set(extract_fields(raw)["process"]) == {"rundll32.exe", "AVAgent.exe"}
+
+
 def test_every_scenario_extracts_something():
     base = datetime(2026, 10, 2)
     for name, fn in SCENARIOS.items():

@@ -36,8 +36,10 @@ build familiarity with how real analyst tooling looks and moves.
   learned and submit a six-section incident report: executive summary, timeline, scope
   and impact, IOCs, root cause, and recommendations. A transparent rubric grades the
   report 0-100. It checks that each section is complete, that the timeline has
-  time-stamped entries, how many of the event's indicators you cite (defanged forms
-  count), and whether your recommendations cover the playbook. You can resubmit as often
+  time-stamped entries, how many of the attacker's indicators you cite (defanged forms
+  count), whether you name the affected hosts and accounts, and whether your
+  recommendations cover the playbook. Victim assets and stock binaries such as cmd.exe
+  are not IOCs. You can resubmit as often
   as you like. Escalating benign activity opens a false-positive case instead, which you
   close with a short note.
 - **Shift Turnover** auto-fills shift stats: worked, accuracy, missed threats, MTTT and

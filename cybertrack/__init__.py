@@ -8,16 +8,31 @@ import os
 from pathlib import Path
 
 from flask import Flask
+from werkzeug.routing import IntegerConverter
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DB = PROJECT_ROOT / "data" / "cybertrack.db"
 CURRICULUM_DIR = PROJECT_ROOT / "data" / "curriculum"
 
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+SQLITE_INT_MAX = 2**63 - 1
+
+
+class SQLiteIntConverter(IntegerConverter):
+    """`<int:...>` capped at SQLite's signed 64-bit INTEGER.
+
+    Werkzeug's int converter takes any number of digits, and SQLite raises
+    OverflowError binding anything bigger, so /soc/case/99999999999999999999
+    was a 500. With the cap the URL doesn't match and the app answers 404.
+    """
+
+    def __init__(self, map, fixed_digits=0, min=None, max=SQLITE_INT_MAX, signed=False):
+        super().__init__(map, fixed_digits=fixed_digits, min=min, max=max, signed=signed)
 
 
 def create_app(config: dict | None = None) -> Flask:
     app = Flask(__name__)
+    app.url_map.converters["int"] = SQLiteIntConverter  # before any blueprint adds a rule
     app.config.update(
         SECRET_KEY=os.environ.get("CYBERTRACK_SECRET", "local-dev-only"),
         DATABASE_URL=os.environ.get("CYBERTRACK_DB_URL", f"sqlite:///{DEFAULT_DB}"),

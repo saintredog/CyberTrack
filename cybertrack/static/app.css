@@ -42,6 +42,8 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
+/* Anchor jumps (#tasks, #notes, #settings, #progression) stop below the sticky topbar, not under it. */
+html { scroll-padding-top: 72px; }
 body {
   background: var(--bg);
   color: var(--ink);
@@ -537,6 +539,7 @@ a.li:hover { background: var(--panel-2); text-decoration: none; }
 /* ------------------------------------------------------------------ cases */
 
 .kpis.k4 { grid-template-columns: repeat(4, 1fr); }
+.kpis.k5 { grid-template-columns: repeat(5, 1fr); }
 .seg .seg-n { color: var(--muted); font-size: 11.5px; margin-left: 3px; font-variant-numeric: tabular-nums; }
 .seg a.on .seg-n { color: var(--ink-2); }
 
@@ -765,6 +768,7 @@ a.side-foot:hover { background: var(--panel-2); text-decoration: none; }
   .icon-btn.menu-btn { display: inline-grid; }
   .app { background: none; }
   .topbar { flex-wrap: wrap; padding: 10px 16px; gap: 10px; }
+  html { scroll-padding-top: 114px; } /* the topbar wraps to two rows (98px) */
   .search { order: 3; flex-basis: 100%; max-width: none; }
   .top-right .clock-date, .top-right .help-btn { display: none; }
   .content { padding: 16px 16px 48px; }
@@ -788,7 +792,8 @@ a.side-foot:hover { background: var(--panel-2); text-decoration: none; }
   .hbar .lbl { grid-column: 1 / -1; }
   .seg a { padding: 5px 8px; }
   .tbl td, .tbl th { padding: 9px 8px; }
-  .kpis.k4 { grid-template-columns: 1fr 1fr; }
+  .kpis.k4, .kpis.k5 { grid-template-columns: 1fr 1fr; }
+  .kpis.k5 .kpi:last-child { grid-column: span 2; }
 }
 @media (max-width: 560px) {
   .row.c4 { grid-template-columns: 1fr; }

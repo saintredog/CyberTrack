@@ -125,6 +125,32 @@ def test_false_positive_case_earns_five_and_open_cases_earn_nothing(session):
     assert xp_breakdown(session) == {"triage": 12, "study": 0, "turnover": 0, "case": 5}
 
 
+def test_closed_case_xp_is_dated_by_the_app_day(client, app):
+    """Replaying a day (TODAY override) dates case XP like triage and study logs, not by the wall clock."""
+    from cybertrack.db import get_session
+
+    replay = date(2026, 9, 1)
+    app.config["TODAY"] = replay.isoformat()
+    client.get("/")
+    with app.app_context():
+        aid = get_session().scalar(select(Alert.id).where(Alert.true_disposition == "benign"))
+    client.post(f"/soc/alert/{aid}/triage", data={"disposition": "malicious", "reason": "looked odd"})
+    with app.app_context():
+        cid = get_session().scalar(select(Case.id).where(Case.alert_id == aid))
+    client.post(f"/soc/case/{cid}/close", data={"note": "approved change"})
+    with app.app_context():
+        s = get_session()
+        case = s.get(Case, cid)
+        assert case.closed_on == case.opened_on == replay
+        events = xp_events(s)
+        assert [(e.source, e.on) for e in events] == [("case", replay), ("triage", replay)]
+
+        # A case closed before closed_on existed falls back to its closed_at date.
+        case.closed_on = None
+        s.commit()
+        assert next(e for e in xp_events(s) if e.source == "case").on == case.closed_at.date()
+
+
 def test_total_matches_events_and_recent_is_newest_ten(session):
     mal, ben = _alerts(session)
     _close_true_positive(session, mal[0], 72)

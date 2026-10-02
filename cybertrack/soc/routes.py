@@ -191,6 +191,7 @@ def _case_or_404(case_id: int) -> Case:
 
 
 def _back(case: Case, anchor: str | None = None):
+    """Back to the case page. Pass an anchor only when no flash is set: flashes render at the top."""
     return redirect(url_for("soc.case_detail", case_id=case.id, _anchor=anchor))
 
 
@@ -240,7 +241,7 @@ def case_task(case_id: int, task_id: int):
         ir.toggle_task(case, task, datetime.now())
     except ValueError as exc:
         flash(str(exc), "error")
-        return _back(case, "tasks")
+        return _back(case)
     session.commit()
     return _back(case, "tasks")
 
@@ -253,7 +254,7 @@ def case_note(case_id: int):
         ir.add_note(case, request.form.get("body", ""), datetime.now())
     except ValueError as exc:
         flash(str(exc), "error")
-        return _back(case, "notes")
+        return _back(case)
     session.commit()
     return _back(case, "notes")
 
@@ -269,7 +270,7 @@ def case_report(case_id: int):
         return _back(case)
     session.commit()
     flash(f"Report graded: {score}/100. The rubric shows where every point came from.", "ok")
-    return _back(case, "grade")
+    return _back(case)  # no anchor, so the flash stays in view; the grade panel follows the stepper
 
 
 @bp.post("/case/<int:case_id>/close")
@@ -277,7 +278,7 @@ def case_close(case_id: int):
     session = get_session()
     case = _case_or_404(case_id)
     try:
-        ir.close_case(case, request.form.get("note", ""), datetime.now())
+        ir.close_case(case, request.form.get("note", ""), datetime.now(), today())
     except ValueError as exc:
         flash(str(exc), "error")
         return _back(case)

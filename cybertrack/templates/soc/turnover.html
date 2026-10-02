@@ -11,7 +11,7 @@
   {% if existing %}<span class="tag" style="color:var(--good-ink);border-color:#234a1c">{{ ui.icon('check', 'sm') }} saved {{ existing.written_at|dt('%H:%M') }}</span>{% endif %}
 </div>
 
-<div class="kpis" style="grid-template-columns:repeat(5,1fr)">
+<div class="kpis k5">
   <div class="kpi"><div class="label">Worked this shift</div><div class="value">{{ stats.worked }}</div><div class="sub">{{ stats.escalated }} escalated &middot; {{ stats.closed }} closed</div></div>
   <div class="kpi"><div class="label">Shift accuracy</div>
     <div class="value {{ '' if stats.accuracy is none else 'tone-good' if stats.accuracy >= 80 else 'tone-warn' if stats.accuracy >= 60 else 'tone-bad' }}">{{ '--' if stats.accuracy is none else (stats.accuracy|round|int ~ '%') }}</div>
