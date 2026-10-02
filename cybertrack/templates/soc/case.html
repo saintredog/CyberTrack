@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}{{ case.ref }} {{ case.title }}{% endblock %}
+{% block content %}
+{% set is_open = case.status == 'open' %}
+{% set last_i = CASE_STAGES|length - 1 %}
+<div class="page-head">
+  <div style="min-width:0">
+    <div class="crumb"><a href="{{ url_for('soc.cases') }}">Cases</a> / {{ case.ref }}</div>
+    <h1>{{ case.title }}</h1>
+    <div class="inv-head">
+      {{ ui.urg(case.severity) }}
+      {{ ui.status(case.status) }}
+      {% if case.false_positive %}<span class="tag fp">false positive</span>{% else %}<span class="tag">{{ STAGE_LABELS[case.stage] }}</span>{% endif %}
+      <span class="tag attack">{{ alert.technique }}</span>
+      <span class="hint-line" style="margin:0">{{ case.ref }} &middot; opened {{ case.opened_at|dt('%d %b %H:%M') }} &middot; {{ 'age' if is_open else 'open for' }} {{ case.opened_at|age(case.closed_at) }}</span>
+    </div>
+  </div>
+  <div class="head-actions">
+    <a class="btn" href="{{ url_for('soc.cases') }}">{{ ui.icon('back', 'sm') }}Cases</a>
+    <a class="btn" href="{{ url_for('soc.alert_detail', alert_id=alert.id) }}">{{ ui.icon('review', 'sm') }}Alert #{{ '%05d'|format(alert.id) }}</a>
+  </div>
+</div>
+
+{% if not is_open %}
+<div class="closed-banner">
+  {{ ui.icon('lock') }}
+  <div>
+    <b>Closed {{ case.closed_at|dt('%d %b %Y %H:%M') }}</b> by {{ analyst_name }}{% if case.false_positive %} as a false positive{% endif %}.
+    {% if case.closing_note %}<div class="cn">{{ case.closing_note }}</div>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+{# ---------------- IR lifecycle stepper (true positives) ---------------- #}
+{% if not case.false_positive %}
+<div class="panel stepper-panel">
+  <ol class="stepper" aria-label="Incident response lifecycle">
+    {% for s in CASE_STAGES %}
+      {% set state = 'done' if (loop.index0 < stage_i or not is_open) else ('cur' if loop.index0 == stage_i else 'todo') %}
+      <li class="step {{ state }}" {% if state == 'cur' %}aria-current="step"{% endif %}>
+        <span class="dot">{% if state == 'done' %}{{ ui.icon('check', 'sm') }}{% else %}{{ loop.index }}{% endif %}</span>
+        <span class="lbl"><b>{{ STAGE_SHORT[s] }}</b><small>{{ 'Complete' if state == 'done' else 'Current' if state == 'cur' else 'Up next' if loop.index0 == stage_i + 1 else 'Pending' }}</small></span>
+      </li>
+    {% endfor %}
+  </ol>
+  {% if is_open %}
+  <div class="stage-bar">
+    <div class="stage-now">
+      <span class="step-n">STAGE {{ stage_i + 1 }} OF {{ CASE_STAGES|length }}</span>
+      <b>{{ STAGE_LABELS[case.stage] }}</b>
+      <span class="g">{{ guidance[case.stage] }}</span>
+    </div>
+    <form class="stage-actions" method="post" action="{{ url_for('soc.case_stage', case_id=case.id) }}">
+      <button class="btn" name="dir" value="prev" type="submit" {{ 'disabled' if stage_i == 0 }}>{{ ui.icon('back', 'sm') }}Back</button>
+      {% if stage_i < last_i %}
+        <button class="btn primary" name="dir" value="next" type="submit">Advance to {{ STAGE_SHORT[CASE_STAGES[stage_i + 1]] }}{{ ui.icon('arrow', 'sm') }}</button>
+      {% else %}
+        <button class="btn" type="button" disabled>{{ ui.icon('check', 'sm') }}Final stage</button>
+      {% endif %}
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="case-grid">
+  {# ---------------- main column ---------------- #}
+  <div class="case-main">
+    {% if case.false_positive %}
+      <div class="verdict fp">
+        <div class="vh">
+          <span class="check fp-dot">{{ ui.icon('alert', 'sm') }}</span>
+          <div style="flex:1;min-width:0">
+            <div class="big">False positive</div>
+            <div style="color:var(--ink-2);font-size:13px">Ground truth for alert #{{ '%05d'|format(alert.id) }} is <b>benign</b>. The escalation opened a case for expected activity, which costs IR time. {% if is_open %}No incident report is needed: record why it was benign, then close the case.{% else %}No incident report was needed; the closing note above records why it was benign.{% endif %}</div>
+          </div>
+        </div>
+        <div class="vb">
+          {% if alert.triage %}<h4>Your escalation reason</h4><p>{{ alert.triage.reason }}</p>{% endif %}
+          <h4>Why it was benign</h4>
+          <ul>{% for ind in alert.indicators %}<li>{{ ind }}</li>{% endfor %}</ul>
+          <h4>Analysis</h4>
+          <p>{{ alert.explanation }}</p>
+        </div>
+      </div>
+
+      {% if is_open %}
+      <div class="panel" id="close">
+        {% call ui.panel_h('Close as false positive', 'closing note required', 'lock') %}{% endcall %}
+        <form class="panel-b" method="post" action="{{ url_for('soc.case_close', case_id=case.id) }}">
+          <label class="f" for="close-note" style="margin-top:0">Closing note <span style="color:var(--bad-ink)">*</span></label>
+          <textarea id="close-note" name="note" rows="3" required placeholder="Benign because ... Tuning that would stop this firing again: ..."></textarea>
+          <div class="hint-line">A useful FP note says what made it benign and what rule tuning would prevent a repeat.</div>
+          <div style="margin-top:12px"><button class="btn safe" type="submit">{{ ui.icon('check', 'sm') }}Close as false positive</button></div>
+        </form>
+      </div>
+      {% endif %}
+    {% else %}
+      {% if case.report_submitted_at %}
+      {% set fb = case.report_feedback %}
+      <div class="panel" id="grade">
+        {% call ui.panel_h('Report grade', 'submitted ' ~ case.report_submitted_at|dt('%d %b %H:%M'), 'target') %}
+          {% if is_open %}<div class="actions"><a class="btn sm" href="#report">{{ ui.icon('note', 'sm') }}Revise and resubmit</a></div>{% endif %}
+        {% endcall %}
+        <div class="grade">
+          <div class="score-card">
+            {{ ui.ring(score_ring, '#3987e5', 'Report score', case.report_score) }}
+            <div style="min-width:0">
+              <div class="band {{ band.tone }}">{{ band.label }}</div>
+              <div class="rs">{{ case.report_score }} of 100 points</div>
+              <div class="hint-line">Deterministic rubric. {{ 'Resubmit as often as you like; the latest submission counts.' if is_open else 'Final grade: the case is closed.' }}</div>
+            </div>
+          </div>
+          <div style="overflow-x:auto;min-width:0">
+          <table class="tbl rubric">
+            <thead><tr><th>Criterion</th><th class="hide-sm bar-h">Earned</th><th class="num">Points</th></tr></thead>
+            <tbody>
+            {% for r in fb %}
+              {% if loop.changed(r.group) %}
+                {% set g_rows = fb|selectattr('group', 'equalto', r.group)|list %}
+                <tr class="grp-h"><td>{{ r.group }}</td><td class="hide-sm"></td><td class="num">{{ g_rows|sum(attribute='earned') }}/{{ g_rows|sum(attribute='possible') }}</td></tr>
+              {% endif %}
+              {% set st = 'full' if r.earned >= r.possible else ('partial' if r.earned > 0 else 'missing') %}
+              <tr>
+                <td>
+                  <div class="crit"><span class="res {{ st }}">{{ ui.icon('check' if st == 'full' else ('alert' if st == 'partial' else 'x'), 'sm') }}{{ {'full': 'Full', 'partial': 'Partial', 'missing': 'Missing'}[st] }}</span><b>{{ r.criterion }}</b></div>
+                  <div class="tip-text">{{ r.tip }}</div>
+                </td>
+                <td class="hide-sm bar-cell">
+                  <span class="track" tabindex="0" data-tip="{{ r.earned }}/{{ r.possible }} points||{{ r.criterion }}"><span class="fill" style="width:{{ (r.earned / r.possible * 100)|round|int if r.possible else 0 }}%"></span></span>
+                </td>
+                <td class="num pts"><b>{{ r.earned }}</b>/{{ r.possible }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+            <tfoot><tr><td>Total</td><td class="hide-sm"></td><td class="num pts"><b>{{ case.report_score }}</b>/100</td></tr></tfoot>
+          </table>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="panel" id="report">
+        {% call ui.panel_h('Incident report', 'six sections, graded on submit', 'turnover') %}{% endcall %}
+        {% if is_open %}
+        <form class="panel-b report-form" method="post" action="{{ url_for('soc.case_report', case_id=case.id) }}">
+          {% for s in sections %}
+          <div class="rsec">
+            <div class="rsec-h">
+              <label for="r-{{ s.key }}"><span class="n">{{ loop.index }}</span>{{ s.label }}</label>
+              <span class="cc" data-cc="r-{{ s.key }}">min {{ s.min_len }} chars</span>
+            </div>
+            <div class="hint-line">{{ s.hint }}</div>
+            <textarea id="r-{{ s.key }}" name="{{ s.key }}" rows="{{ s.rows }}" data-minlen="{{ s.min_len }}" placeholder="{{ s.placeholder }}">{{ case[s.key] }}</textarea>
+          </div>
+          {% endfor %}
+          <div class="report-actions">
+            <button class="btn primary" type="submit">{{ ui.icon('check', 'sm') }}{{ 'Resubmit for grading' if case.report_submitted_at else 'Submit for grading' }}</button>
+            <span class="hint-line" style="margin:0">Scored on completeness, a time-stamped timeline, IOC coverage, affected assets, and playbook-aligned recommendations.</span>
+          </div>
+        </form>
+        {% else %}
+        <div class="panel-b report-read">
+          {% for s in sections %}
+            <h4><span class="n">{{ loop.index }}</span>{{ s.label }}</h4>
+            {% if case[s.key] %}<p>{{ case[s.key] }}</p>{% else %}<p class="owner">Not written.</p>{% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <div class="panel">
+      {% call ui.panel_h('Evidence', alert.raw_log.splitlines()|length ~ ' lines · ' ~ alert.source|upper, 'pivot') %}
+        <div class="actions"><a class="btn sm" href="{{ url_for('soc.alert_detail', alert_id=alert.id) }}">Full investigation {{ ui.icon('arrow', 'sm') }}</a></div>
+      {% endcall %}
+      <div class="event">
+        {% for line in alert.raw_log.splitlines() %}<div class="ln"><span class="no">{{ loop.index }}</span><code>{{ line|highlight }}</code></div>{% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {# ---------------- side column ---------------- #}
+  <div class="case-side">
+    <div class="panel">
+      {% call ui.panel_h('Case status', case.ref, 'case') %}{% endcall %}
+      <div class="kv">
+        <div class="k">Status</div><div class="v">{{ ui.status(case.status) }}</div>
+        {% if not case.false_positive %}<div class="k">Stage</div><div class="v">{{ STAGE_LABELS[case.stage] }}</div>{% endif %}
+        <div class="k">Owner</div><div class="v">{{ analyst_name }}</div>
+        <div class="k">Opened</div><div class="v">{{ case.opened_at|dt('%d %b %Y %H:%M') }}</div>
+        {% if case.closed_at %}<div class="k">Closed</div><div class="v">{{ case.closed_at|dt('%d %b %Y %H:%M') }}</div>{% endif %}
+        <div class="k">Tasks</div><div class="v">{{ case.tasks_done }}/{{ case.tasks|length }} done</div>
+        {% if not case.false_positive %}
+        <div class="k">Report</div>
+        <div class="v">{% if case.report_score is not none %}<span class="{{ band.tone }}" style="font-weight:700">{{ case.report_score }}/100</span> &middot; {{ band.label }}{% else %}<span class="owner">Not submitted</span>{% endif %}</div>
+        {% endif %}
+      </div>
+      {% if is_open and not case.false_positive %}
+      <div class="panel-b close-box">
+        <div class="crumb" style="margin-bottom:6px">TO CLOSE THIS CASE</div>
+        {% set has_report = case.report_submitted_at is not none %}
+        {% set at_lessons = case.stage == 'lessons' %}
+        <div class="req {{ 'ok' if has_report }}">{{ ui.icon('check' if has_report else 'x', 'sm') }}Incident report submitted</div>
+        <div class="req {{ 'ok' if at_lessons }}">{{ ui.icon('check' if at_lessons else 'x', 'sm') }}Stage is Lessons learned</div>
+        <form method="post" action="{{ url_for('soc.case_close', case_id=case.id) }}">
+          <label class="f" for="close-note">Closing note <span class="owner">optional</span></label>
+          <textarea id="close-note" name="note" rows="2" placeholder="Final disposition, residual risk, follow-ups"></textarea>
+          <button class="btn lg safe" type="submit" style="margin-top:10px" {{ 'disabled' if blockers }}>{{ ui.icon('lock', 'sm') }}Close case</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="panel" id="tasks">
+      {% call ui.panel_h('Follow-up tasks' if case.false_positive else 'Response tasks', case.tasks_done ~ '/' ~ case.tasks|length ~ ' done', 'check') %}{% endcall %}
+      <div class="progress" style="margin:0;border-radius:0"><i style="width:{{ (case.tasks_done / case.tasks|length * 100)|round|int if case.tasks else 0 }}%"></i></div>
+      {% for t in case.tasks %}
+        <form method="post" action="{{ url_for('soc.case_task', case_id=case.id, task_id=t.id) }}">
+          <button class="ctask {{ 'on' if t.done }}" type="submit" aria-pressed="{{ 'true' if t.done else 'false' }}" {{ 'disabled' if not is_open }}>
+            <span class="check {{ 'on' if t.done }}">{{ ui.icon('check', 'sm') }}</span>
+            <span class="grow">{{ t.label }}{% if t.done and t.done_at %}<small>done {{ t.done_at|dt('%d %b %H:%M') }}</small>{% endif %}</span>
+          </button>
+        </form>
+      {% else %}
+        <div class="empty">No playbook tasks for this detection.</div>
+      {% endfor %}
+      {% if is_open and case.tasks %}<div class="panel-b hint-line" style="margin:0">Seeded from the detection's response playbook. Click a task to check it off.</div>{% endif %}
+    </div>
+
+    <div class="panel" id="notes">
+      {% call ui.panel_h('Case notes', case.notes|length ~ (' entry' if case.notes|length == 1 else ' entries'), 'note') %}{% endcall %}
+      {% if is_open %}
+      <form class="panel-b note-form" method="post" action="{{ url_for('soc.case_note', case_id=case.id) }}">
+        <textarea name="body" rows="3" required aria-label="New case note" placeholder="What you did, found, or decided"></textarea>
+        <div class="note-actions">
+          <span class="hint-line" style="margin:0">Stamped <span class="tag">{{ STAGE_SHORT[case.stage] }}</span></span>
+          <button class="btn sm primary" type="submit">{{ ui.icon('note', 'sm') }}Add note</button>
+        </div>
+      </form>
+      {% endif %}
+      {% if case.notes %}
+        <ol class="notes">
+          {% for n in case.notes %}
+            <li class="note">
+              <div class="nh"><span class="tag">{{ STAGE_SHORT.get(n.stage, n.stage) }}</span><span class="when">{{ n.created_at|dt('%d %b %H:%M') }}</span></div>
+              <div class="nb">{{ n.body }}</div>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <div class="empty" style="padding:18px 16px">No notes yet.</div>
+      {% endif %}
+    </div>
+
+    <div class="panel">
+      {% call ui.panel_h('Source alert', '#' ~ '%05d'|format(alert.id), 'review') %}{% endcall %}
+      <div class="kv">
+        <div class="k">Rule</div><div class="v">{{ rule_label }}</div>
+        <div class="k">Source</div><div class="v"><span class="tag src">{{ alert.source }}</span></div>
+        <div class="k">Detected</div><div class="v">{{ alert.created_at|dt('%d %b %H:%M:%S') }}</div>
+        {% if alert.triage %}<div class="k">Your reason</div><div class="v">{{ alert.triage.reason }}</div>{% endif %}
+      </div>
+      <div class="panel-b" style="border-top:1px solid var(--line)">
+        <a class="btn" style="width:100%" href="{{ url_for('soc.alert_detail', alert_id=alert.id) }}">{{ ui.icon('pivot', 'sm') }}Open investigation</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

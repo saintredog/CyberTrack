@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Security Posture{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumb">Monitor / Security Posture</div>
+    <h1>Start of shift</h1>
+    <div class="subtitle">{{ day.strftime('%A, %d %B %Y') }} &middot; {{ loop_done }}/3 shift tasks complete &middot; CWE phase {{ cwe_phase }}</div>
+  </div>
+  <div class="head-actions">
+    <a class="btn" href="{{ url_for('soc.turnover') }}">{{ ui.icon('turnover', 'sm') }}Turnover</a>
+    <a class="btn primary" href="{{ url_for('soc.queue') }}">{{ ui.icon('review', 'sm') }}Open Incident Review</a>
+  </div>
+</div>
+
+{# Daily loop checklist #}
+<div class="panel" style="margin-bottom:16px">
+  <div class="loop">
+    {% for s in steps %}
+    <a href="{{ url_for(s.href) }}">
+      <span class="check {{ 'on' if s.done }}">{{ ui.icon('check', 'sm') }}</span>
+      <span style="flex:1;min-width:0">
+        <span class="step-n">STEP {{ loop.index }}</span>
+        <div class="t">{{ s.label }}</div>
+        <div class="s">{{ s.detail }}</div>
+      </span>
+      {{ ui.icon('chev', 'sm') }}
+    </a>
+    {% endfor %}
+  </div>
+  <div class="progress" style="margin:0;border-radius:0 0 8px 8px"><i style="width:{{ (loop_done / 3 * 100)|round|int }}%"></i></div>
+</div>
+
+{# KPI row: one hero figure, four supporting tiles #}
+<div class="kpis">
+  <div class="kpi hero">
+    <div class="label">{{ ui.icon('review', 'sm') }}Open notable events</div>
+    <div class="value">{{ open_total }}</div>
+    <div class="urg-split">
+      {% for u, n in open_urg.items() %}<span class="urg u-{{ u }}">{{ n }} {{ u }}</span>{% endfor %}
+    </div>
+    <div class="sub" style="margin-top:6px">{{ shift_open|length }} from today's shift &middot; {{ open_total - shift_open|length }} backlog</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Triage accuracy</div>
+    {% if m.accuracy is not none %}
+      <div class="value {{ 'tone-good' if m.accuracy >= 0.8 else 'tone-warn' if m.accuracy >= 0.6 else 'tone-bad' }}">{{ (m.accuracy * 100)|round|int }}%</div>
+      <div class="sub">{{ m.total }} triaged{% if m.fn %} &middot; <span class="tone-bad">{{ m.fn }} missed</span>{% endif %}</div>
+    {% else %}
+      <div class="value">--</div><div class="sub">triage to start tracking</div>
+    {% endif %}
+    {{ ui.spark(spark_acc) }}
+  </div>
+  <div class="kpi">
+    <div class="label">Mean time to triage</div>
+    <div class="value">{{ m.mttt|mins }}</div>
+    <div class="sub">open to decision</div>
+    {{ ui.spark(spark_mttt) }}
+  </div>
+  <div class="kpi">
+    <div class="label">{{ ui.icon('flame', 'sm') }}Streak</div>
+    <div class="value">{{ streak }}<small>day{{ '' if streak == 1 else 's' }}</small></div>
+    <div class="sub">consecutive active days</div>
+  </div>
+  <div class="kpi">
+    <div class="label">{{ ui.icon('book', 'sm') }}Reviews due</div>
+    <div class="value {{ 'tone-warn' if due_count }}">{{ due_count }}</div>
+    <div class="sub">spaced-repetition queue</div>
+    {{ ui.spark(spark_study) }}
+  </div>
+</div>
+
+<div class="row c21">
+  <div class="panel">
+    {% call ui.panel_h('Notable events by urgency', 'last 14 days') %}{% endcall %}
+    <div class="panel-b">
+      {{ ui.stacked(timeline, ['critical', 'high', 'medium', 'low'], URGENCY_COLORS) }}
+      <details class="tableview"><summary>{{ ui.icon('chev', 'sm') }}View as table</summary>
+        <table><thead><tr><th>Day</th><th class="num">Critical</th><th class="num">High</th><th class="num">Medium</th><th class="num">Low</th><th class="num">Total</th></tr></thead>
+        <tbody>{% for d in days|reverse %}<tr><td>{{ d.day.strftime('%a %d %b') }}</td><td class="num">{{ d.critical }}</td><td class="num">{{ d.high }}</td><td class="num">{{ d.medium }}</td><td class="num">{{ d.low }}</td><td class="num">{{ d.alerts }}</td></tr>{% endfor %}</tbody></table>
+      </details>
+    </div>
+  </div>
+
+  <div class="panel">
+    {% call ui.panel_h('Last turnover', prev_turnover.shift_date.strftime('%a %d %b') if prev_turnover else '', 'handoff') %}{% endcall %}
+    {% if prev_turnover %}
+      <div class="panel-b">
+        <p style="margin:0 0 10px;color:var(--ink-2)">{{ prev_turnover.summary }}</p>
+        {% if prev_turnover.open_items %}
+          <div class="crumb" style="margin-bottom:6px">OPEN ITEMS CARRIED OVER</div>
+          {% for it in prev_turnover.open_items %}
+            <div class="li" style="padding:7px 0">{{ ui.icon('alert', 'sm') }}<span class="grow">{{ it }}</span></div>
+          {% endfor %}
+        {% else %}
+          <div class="hint-line">No open items carried over.</div>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="empty"><b>No turnover yet</b>Work today's queue, then write your first handoff.</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="panel" style="margin-bottom:16px">
+  {% call ui.panel_h('Open cases', open_cases|length ~ ' in progress', 'case') %}
+    <div class="actions"><a class="btn sm" href="{{ url_for('soc.cases') }}">All cases {{ ui.icon('arrow', 'sm') }}</a></div>
+  {% endcall %}
+  {% if open_cases %}
+    <div class="list">
+      {% for c in open_cases[:6] %}
+      <a class="li" href="{{ url_for('soc.case_detail', case_id=c.id) }}">
+        {{ ui.urg(c.severity) }}
+        <span class="grow">
+          <div class="t">{{ c.title }}</div>
+          <div class="s">{{ c.ref }} &middot; {{ c.tasks_done }}/{{ c.tasks|length }} tasks &middot; age {{ c.opened_at|age }} &middot;
+            {% if c.false_positive %}<span class="fp-mark">false positive</span>, close with a note{% elif c.report_score is not none %}report {{ c.report_score }}/100{% else %}report not submitted{% endif %}</div>
+        </span>
+        {% if not c.false_positive %}<span class="stage-cell hide-xs">{{ ui.stage_mini(c) }}<span>{{ STAGE_SHORT[c.stage] }}</span></span>{% endif %}
+        {{ ui.icon('chev', 'sm') }}
+      </a>
+      {% endfor %}
+    </div>
+    {% if open_cases|length > 6 %}<div class="panel-b hint-line" style="margin:0;border-top:1px solid var(--line)">{{ open_cases|length - 6 }} more on the <a href="{{ url_for('soc.cases') }}">Cases</a> page.</div>{% endif %}
+  {% else %}
+    <div class="empty" style="padding:18px 16px"><b>No open cases</b>Escalating a malicious alert opens one here.</div>
+  {% endif %}
+</div>
+
+<div class="row c2">
+  <div class="panel">
+    {% call ui.panel_h("Today's queue", shift_open|length ~ ' open of ' ~ alerts_total, 'review') %}
+      <div class="actions"><a class="btn sm" href="{{ url_for('soc.queue') }}">Review all {{ ui.icon('arrow', 'sm') }}</a></div>
+    {% endcall %}
+    {% if shift_open %}
+      <div class="list">
+        {% for a in shift_open %}
+        <a class="li" href="{{ url_for('soc.alert_detail', alert_id=a.id) }}">
+          {{ ui.urg(a.severity) }}
+          <span class="grow"><div class="t">{{ a.title }}</div><div class="s">{{ a.source|upper }} &middot; {{ a.created_at|dt('%H:%M') }} &middot; {{ a.technique }}</div></span>
+          {{ ui.icon('chev', 'sm') }}
+        </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty"><b>Queue clear</b>Today's shift is fully triaged.</div>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    {% call ui.panel_h("Today's study block", study_today|sum(attribute='minutes') ~ ' min planned', 'target') %}
+      <div class="actions"><a class="btn sm" href="{{ url_for('study.today_tasks') }}">Start {{ ui.icon('arrow', 'sm') }}</a></div>
+    {% endcall %}
+    {% if study_today %}
+      <div class="list">
+        {% for i in study_today %}
+        <a class="li" href="{{ url_for('study.today_tasks') }}">
+          <span class="check {{ 'on' if i.id in logged_today }}">{{ ui.icon('check', 'sm') }}</span>
+          <span class="grow"><div class="t">{{ i.topic }}</div><div class="s">{{ i.section }}</div></span>
+          <span class="pill" style="border-color:{{ TRACK_COLORS.get(i.track, '#3987e5') }}">{{ i.track|upper }}</span>
+          <span class="s">{{ i.minutes }}m</span>
+        </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty"><b>Nothing scheduled</b>Raise your daily minutes on the Training page.</div>
+    {% endif %}
+  </div>
+</div>
+
+{# Analyst progression: XP comes from history; the tier sets difficulty on Auto. #}
+<div class="row c21 top" id="progression">
+  <div class="panel">
+    {% call ui.panel_h('Analyst progression', 'XP from triage, study, turnover and closed cases', 'rank') %}
+      <div class="actions"><a class="btn sm" href="{{ url_for('study.dashboard') }}#settings">Difficulty {{ ui.icon('arrow', 'sm') }}</a></div>
+    {% endcall %}
+    <div class="prog">
+      <div class="prog-tier">
+        <div class="crumb">CURRENT TIER</div>
+        <div class="tier-name">{{ prog.tier.name }}</div>
+        <div class="prog-xp"><b>{{ prog.xp|num }}</b> XP
+          {%- if prog.next_tier %} &middot; <b>{{ prog.xp_to_next|num }}</b> to {{ prog.next_tier.name }}{% else %} &middot; top tier{% endif %}</div>
+        {% set into_label = (prog.xp_into_tier|num ~ ' / ' ~ prog.tier_span|num ~ ' XP') if prog.next_tier else (prog.xp_into_tier|num ~ ' XP past ' ~ prog.tier.min_xp|num) %}
+        <div class="progress lg" role="progressbar" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ prog.pct }}"
+             aria-label="{{ prog.pct }}% through {{ prog.tier.name }}" data-tip="{{ into_label }}||{{ prog.pct }}% through {{ prog.tier.name }}"><i style="width:{{ prog.pct }}%"></i></div>
+        <div class="prog-scale">
+          <span>{{ prog.tier.min_xp|num }}</span>
+          <span>{{ prog.pct }}% through tier</span>
+          <span>{{ prog.next_tier.min_xp|num if prog.next_tier else 'max' }}</span>
+        </div>
+        <ol class="ladder" aria-label="Tier ladder">
+          {% for t in tiers %}
+            <li class="{{ 'done' if t.number < prog.tier.number else 'cur' if t.number == prog.tier.number }}"{% if t.number == prog.tier.number %} aria-current="step"{% endif %}>
+              <b>{{ t.name|replace(' Analyst', '') }}</b><small>{{ t.min_xp|num }} XP</small>
+            </li>
+          {% endfor %}
+        </ol>
+      </div>
+
+      <div class="prog-next">
+        {% if prog.next_tier %}
+          <div class="crumb">AT {{ prog.next_tier.name|upper }} ({{ prog.next_tier.min_xp|num }} XP)</div>
+          {% if next_changes %}
+            <ul class="changes">
+              {% for c in next_changes %}<li>{{ ui.icon('arrow', 'sm') }}<span>{{ c }}</span></li>{% endfor %}
+            </ul>
+          {% else %}
+            <p class="prog-note">No change to shifts: {{ prog.next_tier.name }} keeps Level {{ level_next.number }} ({{ level_next.name }}), the hardest level. The title is the reward.</p>
+          {% endif %}
+          <div class="hint-line">
+            {% if difficulty == 'auto' %}Difficulty is on Auto, so this applies from the first shift after you reach {{ prog.next_tier.name }}.
+            {% else %}Difficulty is pinned at Level {{ difficulty }}, so shifts stay as they are until you set it back to Auto.{% endif %}
+          </div>
+        {% else %}
+          <div class="crumb">TOP TIER</div>
+          <p class="prog-note">You've reached {{ prog.tier.name }}. On Auto, shifts run at Level {{ top_level.number }} ({{ top_level.name }}): {{ top_level.summary }}</p>
+          {% if difficulty != 'auto' %}<div class="hint-line">Difficulty is pinned at Level {{ difficulty }}.</div>{% endif %}
+        {% endif %}
+
+        <div class="shift-lvl">
+          <div><span class="k">Today's shift</span>
+            {% if level_today %}<span class="lvl-badge">L{{ level_today.number }}</span> {{ level_today.name }} &middot; {{ alerts_total }} alerts{% if not level_today.hints %} &middot; no hints{% endif %}
+            {% else %}generated before difficulty levels &middot; {{ alerts_total }} alerts{% endif %}</div>
+          {% if not level_today or level_tomorrow.number != level_today.number or alerts_tomorrow != alerts_total %}
+          <div><span class="k">Next shift</span>
+            <span class="lvl-badge">L{{ level_tomorrow.number }}</span> {{ level_tomorrow.name }} &middot; {{ alerts_tomorrow }} alerts{% if not level_tomorrow.hints %} &middot; no hints{% endif %}</div>
+          {% endif %}
+          <div><span class="k">Difficulty</span>{% if difficulty == 'auto' %}Auto (follows tier){% else %}Pinned at Level {{ difficulty }}{% endif %}{% if alerts_explicit %} &middot; alerts per day fixed at {{ alerts_tomorrow }}{% endif %}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-b prog-src">
+      <div class="crumb">XP BY SOURCE</div>
+      {{ ui.hbars(xp_rows, xp_max, suffix=' XP') }}
+      <details class="tableview"><summary>{{ ui.icon('chev', 'sm') }}View as table</summary>
+        <table><thead><tr><th>Source</th><th>Rule</th><th class="num">XP</th></tr></thead>
+        <tbody>
+          {% for r in xp_rows %}<tr><td>{{ r.label }}</td><td>{{ r.rule }}</td><td class="num">{{ r.value|num }}</td></tr>{% endfor %}
+          <tr><td><b>Total</b></td><td></td><td class="num"><b>{{ prog.xp|num }}</b></td></tr>
+        </tbody></table>
+      </details>
+    </div>
+  </div>
+
+  <div class="panel">
+    {% call ui.panel_h('Recent XP', 'last ' ~ prog.events|length ~ ' event' ~ ('' if prog.events|length == 1 else 's'), 'bolt') %}{% endcall %}
+    {% if prog.events %}
+      <div class="list">
+        {% for e in prog.events %}
+        <div class="li xp-ev">
+          <span class="pts">+{{ e.points }}</span>
+          {{ ui.icon({'triage': 'review', 'study': 'book', 'turnover': 'turnover', 'case': 'case'}[e.source], 'sm') }}
+          <span class="grow"><div class="t">{{ e.label }}</div><div class="s" title="{{ e.detail }}">{{ e.detail }}</div></span>
+          <span class="when">{{ e.on.strftime('%d %b') }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty"><b>No XP yet</b>Triage an alert, log a study session, or write a turnover to start earning.</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="panel">
+  {% call ui.panel_h('MITRE ATT&CK techniques observed', 'last 7 days') %}{% endcall %}
+  <div class="panel-b" style="display:flex;flex-wrap:wrap;gap:8px">
+    {% for t in techniques %}
+      <a class="tag attack" href="{{ url_for('soc.queue', q='technique=' ~ t.id, status='any') }}" title="{{ t.title }}">{{ t.id }} <span style="color:var(--muted)">&times;{{ t.count }}</span></a>
+    {% else %}
+      <span class="hint-line">No detections yet.</span>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

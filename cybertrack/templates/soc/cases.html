@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Cases{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumb">Monitor / Cases</div>
+    <h1>Incident cases</h1>
+    <div class="subtitle">Every escalation opens a case. Work it through the IR lifecycle, write the incident report, then close it out.</div>
+  </div>
+  <div class="head-actions">
+    <a class="btn" href="{{ url_for('soc.queue', status='escalated') }}">{{ ui.icon('review', 'sm') }}Escalated alerts</a>
+  </div>
+</div>
+
+{% set avg_band = kpi.avg_score|band %}
+<div class="kpis k4">
+  <div class="kpi">
+    <div class="label">{{ ui.icon('case', 'sm') }}Open cases</div>
+    <div class="value">{{ kpi.open }}</div>
+    <div class="sub">{{ kpi.critical }} critical or high urgency</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Awaiting report</div>
+    <div class="value {{ 'tone-warn' if kpi.awaiting }}">{{ kpi.awaiting }}</div>
+    <div class="sub">true positives without a submitted report</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Mean report score</div>
+    <div class="value {{ avg_band.tone }}">{{ kpi.avg_score if kpi.avg_score is not none else '--' }}<small>/100</small></div>
+    <div class="sub">{% if kpi.graded %}{{ avg_band.label }} &middot; {{ kpi.graded }} graded{% else %}no reports graded yet{% endif %}</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Closed</div>
+    <div class="value">{{ kpi.closed }}</div>
+    <div class="sub">{{ kpi.fp }} false-positive escalation{{ '' if kpi.fp == 1 else 's' }} overall</div>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="filter-row">
+    <div class="seg" role="group" aria-label="Case status">
+      {% for key, label in filters.items() %}<a class="{{ 'on' if show == key }}" href="{{ url_for('soc.cases', show=key) }}">{{ label }} <span class="seg-n">{{ counts[key] }}</span></a>{% endfor %}
+    </div>
+    <span class="result-count"><b>{{ cases|length }}</b> case{{ '' if cases|length == 1 else 's' }}</span>
+  </div>
+
+  {% if cases %}
+  <div style="overflow-x:auto">
+  <table class="tbl" id="cases">
+    <thead><tr>
+      <th class="hide-sm">Case</th><th>Urgency</th><th>Title</th><th class="hide-sm">Stage</th><th class="hide-sm num">Tasks</th><th class="hide-sm num">Age</th><th class="hide-sm">Status</th><th class="num">Report</th>
+    </tr></thead>
+    <tbody>
+    {% for c in cases %}
+      <tr class="ev u-{{ c.severity }} {{ 'done' if c.status == 'closed' }}" data-href="{{ url_for('soc.case_detail', case_id=c.id) }}" tabindex="-1">
+        <td class="time hide-sm">{{ c.ref }}<small>{{ c.opened_at|dt('%d %b %H:%M') }}</small></td>
+        <td>{{ ui.urg(c.severity) }}</td>
+        <td>
+          <a class="title" href="{{ url_for('soc.case_detail', case_id=c.id) }}">{{ c.title }}</a>
+          <div class="hint-line" style="margin:2px 0 0">
+            <span class="show-sm">{{ c.ref }} &middot; </span>alert #{{ '%05d'|format(c.alert_id) }}
+            {% if c.false_positive %} &middot; <span class="fp-mark">false positive</span>{% endif %}
+            <span class="show-sm">{% if not c.false_positive %} &middot; {{ STAGE_SHORT[c.stage] }}{% endif %} &middot; {{ c.opened_at|age(c.closed_at) }}</span>
+          </div>
+        </td>
+        <td class="hide-sm">
+          {% if c.false_positive %}<span class="owner">n/a (false positive)</span>
+          {% else %}<span class="stage-cell">{{ ui.stage_mini(c) }}<span>{{ STAGE_LABELS[c.stage] }}</span></span>{% endif %}
+        </td>
+        <td class="hide-sm num">{{ c.tasks_done }}/{{ c.tasks|length }}</td>
+        <td class="hide-sm num time">{{ c.opened_at|age(c.closed_at) }}</td>
+        <td class="hide-sm">{{ ui.status(c.status) }}</td>
+        <td class="num" style="white-space:nowrap">
+          {% if c.report_score is not none %}{% set b = c.report_score|band %}<span class="score {{ b.tone }}">{{ c.report_score }}</span><small class="band-l">{{ b.label }}</small>
+          {% elif c.false_positive %}<span class="owner">not needed</span>
+          {% else %}<span class="owner">pending</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+    <div class="empty">
+      {% if show == 'closed' %}<b>No closed cases yet</b>Finish a case's report and lifecycle, then close it.
+      {% else %}<b>No {{ 'open ' if show == 'open' }}cases</b>Escalate a malicious alert from <a href="{{ url_for('soc.queue') }}">Incident Review</a> to open one.{% endif %}
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

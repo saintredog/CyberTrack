@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Today's Block{% endblock %}
+{% block content %}
+{% set done_n = picks|selectattr('id', 'in', logged.keys()|list)|list|length %}
+<div class="page-head">
+  <div>
+    <div class="crumb">Develop / Today's Block</div>
+    <h1>Today's study block</h1>
+    <div class="subtitle">{{ planned_minutes }} min planned &middot; {{ done_n }}/{{ picks|length }} done &middot; weighted toward reviews that are due and CWE phase {{ cwe_phase }}</div>
+  </div>
+  <div class="head-actions"><a class="btn" href="{{ url_for('study.dashboard') }}">{{ ui.icon('training', 'sm') }}All tracks</a></div>
+</div>
+
+<div class="panel">
+  <div class="progress" style="margin:0;border-radius:8px 8px 0 0"><i style="width:{{ (done_n / picks|length * 100)|round|int if picks else 0 }}%"></i></div>
+  {% for item in picks %}
+    {% set log = logged.get(item.id) %}
+    <div class="task {{ 'done' if log }}">
+      <div class="top">
+        <span class="check {{ 'on' if log }}" style="margin-top:2px">{{ ui.icon('check', 'sm') }}</span>
+        <div style="flex:1;min-width:0">
+          <div class="t">{{ item.topic }}</div>
+          <div class="meta">
+            <span class="swatch" style="width:9px;height:9px;border-radius:2px;display:inline-block;background:{{ TRACK_COLORS.get(item.track, '#3987e5') }}"></span>
+            {{ item.track|upper }} &middot; {{ item.section }} &middot; {{ item.minutes }} min
+            {% if item.hands_on %}<span class="pill lab">HANDS-ON LAB</span>{% endif %}
+            {% if item.track == 'cwe' %}<span class="pill cwe">CWE PHASE {{ item.phase }}</span>{% endif %}
+          </div>
+          {% if item.track == 'cwe' and not log %}<div class="hint-line">{{ ui.icon('code', 'sm') }} {{ cwe_hint }}</div>{% endif %}
+          {% if log %}
+            <div class="hint-line">Logged {{ log.action }} &middot; {{ log.minutes }} min &middot; confidence {{ log.confidence }}/5 &middot; next review in {{ item.review.interval_days }} day{{ '' if item.review.interval_days == 1 else 's' }}</div>
+          {% else %}
+            <form method="post" action="{{ url_for('study.log_item', item_id=item.id) }}" class="rate">
+              <input type="hidden" name="next" value="{{ url_for('study.today_tasks') }}">
+              <select name="action" aria-label="What you did">
+                <option value="studied">Studied</option>
+                <option value="quizzed">Quizzed</option>
+                <option value="built">Built / practiced</option>
+              </select>
+              <input type="number" name="minutes" value="{{ item.minutes }}" min="1" max="300" style="width:76px" aria-label="Minutes">
+              <span class="scale-l">shaky</span>
+              {% for c in [1, 2, 3, 4, 5] %}<button name="confidence" value="{{ c }}" type="submit" title="Confidence {{ c }}/5">{{ c }}</button>{% endfor %}
+              <span class="scale-l">solid</span>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <div class="empty"><b>Nothing scheduled</b>Check the <a href="{{ url_for('study.dashboard') }}">tracker</a> or raise your daily minutes.</div>
+  {% endfor %}
+</div>
+<div class="hint-line" style="margin-top:10px">Confidence sets the next review: 1-2 brings it back tomorrow, 5 pushes it furthest out.</div>
+{% endblock %}

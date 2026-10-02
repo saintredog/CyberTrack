@@ -1,0 +1,57 @@
+# Cyber Warfare Engineer (1840) path — mirrors the four phases in the
+# cwe-interview-prep skill's roadmap.md so the commission track lives beside
+# everything else. CyberTrack schedules and tracks these; run the actual
+# Socratic drilling through the cwe-interview-prep skill ("quiz me").
+#
+# Items are gated by phase: only items at or below your current CWE phase are
+# scheduled. Set your phase on the Study page. The deeper phases stay locked
+# until you advance, so you are not handed exploit-dev before C fundamentals.
+track: cwe
+sections:
+  - section: "Phase 1: C fundamentals"
+    phase: 1
+    items:
+      - topic: "C syntax, control flow, functions; read C fluently"
+        minutes: 30
+      - topic: "Pointers and pointer arithmetic"
+        minutes: 30
+      - topic: "Manual memory: malloc/free, use-after-free, leaks"
+        minutes: 30
+      - topic: "Structs, arrays, and strings as char buffers"
+        minutes: 25
+  - section: "Phase 2: Program execution and assembly"
+    phase: 2
+    items:
+      - topic: "Compilation and linking stages (source to process)"
+        minutes: 25
+      - topic: "The stack, stack frames, and calling conventions"
+        minutes: 30
+      - topic: "x86-64 registers and common instructions"
+        minutes: 30
+      - topic: "Read disassembly and map it back to C"
+        minutes: 35
+        hands_on: true
+  - section: "Phase 3: Reverse engineering tooling"
+    phase: 3
+    items:
+      - topic: "Ghidra: load a binary, read decompiler output, follow xrefs"
+        minutes: 40
+        hands_on: true
+      - topic: "gdb: breakpoints, stepping, registers, examining memory"
+        minutes: 40
+        hands_on: true
+      - topic: "Map a small binary end to end"
+        minutes: 45
+        hands_on: true
+  - section: "Phase 4: Exploit development"
+    phase: 4
+    items:
+      - topic: "Buffer overflows and stack smashing"
+        minutes: 40
+        hands_on: true
+      - topic: "Control-flow hijacking fundamentals"
+        minutes: 40
+        hands_on: true
+      - topic: "pwntools: build an exploit for a challenge binary"
+        minutes: 45
+        hands_on: true

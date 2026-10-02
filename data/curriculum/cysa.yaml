@@ -1,0 +1,48 @@
+# CompTIA CySA+ (CS0-003) — exam domains and the tools each one tests.
+# Edit freely: add, remove, or reword topics as you work through the objectives.
+track: cysa
+sections:
+  - section: "1. Security Operations"
+    items:
+      - topic: "System and network architecture concepts (logging, NetFlow, IAM)"
+        minutes: 20
+      - topic: "Analyze indicators of malicious activity (network, host, app, email)"
+        minutes: 25
+      - topic: "Threat-hunting and intelligence (TTPs, IOCs, MITRE ATT&CK)"
+        minutes: 20
+      - topic: "SIEM: write and tune correlation searches (Splunk SPL / ELK KQL)"
+        minutes: 30
+      - topic: "Packet and traffic analysis with Wireshark and Zeek"
+        minutes: 30
+      - topic: "Email header and header-auth analysis (SPF, DKIM, DMARC)"
+        minutes: 20
+      - topic: "Endpoint/EDR telemetry: process trees, command lines, Sysmon"
+        minutes: 25
+  - section: "2. Vulnerability Management"
+    items:
+      - topic: "Run and read vulnerability scans (Nessus / OpenVAS)"
+        minutes: 30
+      - topic: "CVSS v3.1 scoring and prioritization"
+        minutes: 20
+      - topic: "Validate findings: false positives, exceptions, compensating controls"
+        minutes: 20
+      - topic: "Attack surface and asset discovery"
+        minutes: 20
+  - section: "3. Incident Response and Management"
+    items:
+      - topic: "IR lifecycle (prep, detection, containment, eradication, recovery)"
+        minutes: 20
+      - topic: "Containment, eradication, and recovery decisions"
+        minutes: 20
+      - topic: "Evidence handling and chain of custody"
+        minutes: 15
+      - topic: "Basic host and memory forensics triage"
+        minutes: 30
+  - section: "4. Reporting and Communication"
+    items:
+      - topic: "Write an incident report and timeline"
+        minutes: 25
+      - topic: "Communicate risk to non-technical stakeholders"
+        minutes: 15
+      - topic: "Metrics, KPIs, and detection tuning feedback loops"
+        minutes: 15

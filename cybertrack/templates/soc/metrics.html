@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Analytics{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumb">Operations / Analytics</div>
+    <h1>Analyst performance</h1>
+    <div class="subtitle">How your calls stack up against ground truth. Watch false negatives: those are threats you let through.</div>
+  </div>
+</div>
+
+{% if m.total %}
+<div class="kpis">
+  <div class="kpi hero">
+    <div class="label">Overall accuracy</div>
+    <div class="value {{ 'tone-good' if m.accuracy >= 0.8 else 'tone-warn' if m.accuracy >= 0.6 else 'tone-bad' }}">{{ (m.accuracy * 100)|round|int }}%</div>
+    <div class="sub">{{ m.tp + m.tn }} of {{ m.total }} alerts called correctly</div>
+  </div>
+  <div class="kpi"><div class="label">Threats caught</div><div class="value">{{ m.tp }}</div><div class="sub">true positives</div></div>
+  <div class="kpi"><div class="label">Threats missed</div><div class="value {{ 'tone-bad' if m.fn }}">{{ m.fn }}</div><div class="sub">false negatives</div></div>
+  <div class="kpi"><div class="label">Noise escalated</div><div class="value {{ 'tone-warn' if m.fp }}">{{ m.fp }}</div><div class="sub">false positives</div></div>
+  <div class="kpi"><div class="label">Mean time to triage</div><div class="value">{{ m.mttt|mins }}</div><div class="sub">open to decision</div></div>
+</div>
+
+<div class="row c21">
+  <div class="panel">
+    {% call ui.panel_h('Triage accuracy', 'daily, last 14 days') %}{% endcall %}
+    <div class="panel-b">
+      {{ ui.line(acc_chart, '#3987e5', 'Daily triage accuracy, last 14 days') }}
+      <details class="tableview"><summary>{{ ui.icon('chev', 'sm') }}View as table</summary>
+        <table><thead><tr><th>Day</th><th class="num">Triaged</th><th class="num">Correct</th><th class="num">Accuracy</th></tr></thead>
+        <tbody>{% for d in days|reverse %}<tr><td>{{ d.day.strftime('%a %d %b') }}</td><td class="num">{{ d.triaged }}</td><td class="num">{{ d.correct }}</td><td class="num">{{ '--' if d.accuracy is none else (d.accuracy|round|int ~ '%') }}</td></tr>{% endfor %}</tbody></table>
+      </details>
+    </div>
+  </div>
+  <div class="panel">
+    {% call ui.panel_h('Confusion matrix', 'all time') %}{% endcall %}
+    <div class="panel-b">
+      <div class="cm">
+        <div></div><div class="h">You escalated</div><div class="h">You closed</div>
+        <div class="h rh">Malicious</div>
+        <div class="cell good" tabindex="0" data-tip="{{ m.tp }}||true positives: threats caught"><b>{{ m.tp }}</b><span>{{ ui.icon('check', 'sm') }}True positive</span></div>
+        <div class="cell fn" tabindex="0" data-tip="{{ m.fn }}||false negatives: threats missed"><b>{{ m.fn }}</b><span>{{ ui.icon('x', 'sm') }}False negative</span></div>
+        <div class="h rh">Benign</div>
+        <div class="cell fp" tabindex="0" data-tip="{{ m.fp }}||false positives: noise escalated"><b>{{ m.fp }}</b><span>{{ ui.icon('alert', 'sm') }}False positive</span></div>
+        <div class="cell good" tabindex="0" data-tip="{{ m.tn }}||true negatives: noise closed"><b>{{ m.tn }}</b><span>{{ ui.icon('check', 'sm') }}True negative</span></div>
+      </div>
+      <div class="hint-line" style="margin-top:12px">Rows are ground truth, columns are your call. Precision {{ ((m.tp / (m.tp + m.fp)) * 100)|round|int if (m.tp + m.fp) else '--' }}% &middot; recall {{ ((m.tp / (m.tp + m.fn)) * 100)|round|int if (m.tp + m.fn) else '--' }}%.</div>
+    </div>
+  </div>
+</div>
+
+<div class="row c2">
+  <div class="panel">
+    {% call ui.panel_h('Accuracy by detection', 'weakest first') %}{% endcall %}
+    <div class="panel-b">
+      {{ ui.hbars(rules, 100, '#3987e5', '%', weak_below=70) }}
+      <div class="hint-line" style="margin-top:12px">Detections under 70% are your weak spots. Drill those alerts next.</div>
+    </div>
+  </div>
+  <div style="display:grid;gap:16px;align-content:start">
+    <div class="panel">
+      {% call ui.panel_h('Mean time to triage', 'daily, minutes') %}{% endcall %}
+      <div class="panel-b">{{ ui.line(mttt_chart, '#3987e5', 'Daily mean time to triage in minutes') }}</div>
+    </div>
+    <div class="panel">
+      {% call ui.panel_h('Events by source', 'all time') %}{% endcall %}
+      <div class="panel-b">{{ ui.hbars(sources, source_max, '#3987e5') }}</div>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="panel"><div class="empty" style="padding:60px 16px"><b>No triage history yet</b>Work the <a href="{{ url_for('soc.queue') }}">queue</a> and your performance shows up here.</div></div>
+{% endif %}
+{% endblock %}

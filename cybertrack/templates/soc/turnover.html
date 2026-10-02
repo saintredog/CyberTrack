@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Shift Turnover{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumb">Operations / Shift Turnover</div>
+    <h1>Shift turnover</h1>
+    <div class="subtitle">End-of-shift handoff for {{ today.strftime('%A %d %b') }}. Tomorrow's queue opens with your open items.</div>
+  </div>
+  {% if existing %}<span class="tag" style="color:var(--good-ink);border-color:#234a1c">{{ ui.icon('check', 'sm') }} saved {{ existing.written_at|dt('%H:%M') }}</span>{% endif %}
+</div>
+
+<div class="kpis k5">
+  <div class="kpi"><div class="label">Worked this shift</div><div class="value">{{ stats.worked }}</div><div class="sub">{{ stats.escalated }} escalated &middot; {{ stats.closed }} closed</div></div>
+  <div class="kpi"><div class="label">Shift accuracy</div>
+    <div class="value {{ '' if stats.accuracy is none else 'tone-good' if stats.accuracy >= 80 else 'tone-warn' if stats.accuracy >= 60 else 'tone-bad' }}">{{ '--' if stats.accuracy is none else (stats.accuracy|round|int ~ '%') }}</div>
+    <div class="sub">vs. ground truth</div></div>
+  <div class="kpi"><div class="label">Missed threats</div><div class="value {{ 'tone-bad' if stats.missed else '' }}">{{ stats.missed }}</div><div class="sub">false negatives today</div></div>
+  <div class="kpi"><div class="label">Mean time to triage</div><div class="value">{{ stats.mttt|mins }}</div><div class="sub">this shift</div></div>
+  <div class="kpi"><div class="label">Open backlog</div><div class="value {{ 'tone-warn' if stats.backlog }}">{{ stats.backlog }}</div><div class="sub">handed to next shift</div></div>
+</div>
+
+<div class="row c21">
+  <div class="panel">
+    {% call ui.panel_h('Handoff', 'what the next analyst needs to know', 'turnover') %}{% endcall %}
+    <form class="panel-b" method="post">
+      <label class="f" for="summary" style="margin-top:0">Shift summary <span style="color:var(--bad-ink)">*</span></label>
+      <textarea id="summary" name="summary" required rows="4" placeholder="Volume worked, what got escalated and why, anything that looked off">{{ existing.summary if existing }}</textarea>
+      <label class="f" for="open_items">Open items, one per line</label>
+      <textarea id="open_items" name="open_items" rows="4" placeholder="Confirm WS-0142 reimage completed&#10;Verify vendor_maint account expired">{{ existing.open_items | join('\n') if existing }}</textarea>
+      <div class="hint-line">A good turnover answers: what happened, what's still open, and what the next person should do first.</div>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+        <button class="btn primary" type="submit">{{ ui.icon('check', 'sm') }}{{ 'Update turnover' if existing else 'Save turnover' }}</button>
+        <a class="btn" href="{{ url_for('dashboard.home') }}">Back to posture</a>
+      </div>
+    </form>
+  </div>
+
+  <div style="display:grid;gap:16px;align-content:start;min-width:0">
+    <div class="panel" id="case-items">
+      {% call ui.panel_h('Open cases', 'suggested open items', 'case') %}
+        {% if case_items %}<div class="actions"><button class="btn sm" type="button" data-add-all>Add all</button></div>{% endif %}
+      {% endcall %}
+      {% if case_items %}
+        <div class="list">
+          {% for c, line in case_items %}
+            <div class="li">
+              <span class="grow">
+                <a class="t" href="{{ url_for('soc.case_detail', case_id=c.id) }}" style="color:var(--ink)">{{ c.ref }} {{ c.title }}</a>
+                <div class="s">{{ ui.urg(c.severity, false) }} &middot; {{ 'False positive' if c.false_positive else STAGE_LABELS[c.stage] }} &middot; {{ c.tasks_done }}/{{ c.tasks|length }} tasks &middot; {% if c.false_positive %}needs closing note{% elif c.report_score is not none %}report {{ c.report_score }}/100{% else %}report not submitted{% endif %}</div>
+              </span>
+              <button class="btn sm ghost" type="button" data-add-item="{{ line }}" title="Add to open items">+ Add</button>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="panel-b hint-line" style="margin:0;border-top:1px solid var(--line)">Open cases carry to the next shift. Add them to your open items so the handoff says where each one stands.</div>
+      {% else %}
+        <div class="empty">No open cases to hand off.</div>
+      {% endif %}
+    </div>
+    <div class="panel">
+      {% call ui.panel_h('Escalated today', escalated|length ~ ' event' ~ ('' if escalated|length == 1 else 's'), 'alert') %}{% endcall %}
+      {% if escalated %}
+        <div class="list">
+          {% for a in escalated %}
+            <a class="li" href="{{ url_for('soc.alert_detail', alert_id=a.id) }}">{{ ui.urg(a.severity) }}<span class="grow"><div class="t">{{ a.title }}</div><div class="s">{{ a.source|upper }} &middot; {{ a.created_at|dt('%H:%M') }}</div></span></a>
+          {% endfor %}
+        </div>
+        <div class="panel-b hint-line" style="margin:0;border-top:1px solid var(--line)">Escalations usually become open items until containment is confirmed.</div>
+      {% else %}
+        <div class="empty">Nothing escalated today.</div>
+      {% endif %}
+    </div>
+    {% if prev_turnover %}
+    <div class="panel">
+      {% call ui.panel_h('Previous handoff', prev_turnover.shift_date.strftime('%a %d %b'), 'handoff') %}{% endcall %}
+      <div class="panel-b">
+        <p style="margin:0;color:var(--ink-2)">{{ prev_turnover.summary }}</p>
+        {% if prev_turnover.open_items %}<ul style="margin:8px 0 0;padding-left:18px">{% for it in prev_turnover.open_items %}<li>{{ it }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="panel">
+  {% call ui.panel_h('Turnover log', 'last 10 shifts') %}{% endcall %}
+  {% if history %}
+  <div style="overflow-x:auto">
+  <table class="tbl">
+    <thead><tr><th>Shift</th><th>Summary</th><th class="num">Open items</th></tr></thead>
+    <tbody>
+      {% for t in history %}
+        <tr><td class="time">{{ t.shift_date.strftime('%a %d %b') }}</td><td style="color:var(--ink-2)">{{ t.summary }}</td><td class="num">{{ t.open_items|length }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+    <div class="empty">No earlier turnovers yet.</div>
+  {% endif %}
+</div>
+{% endblock %}
