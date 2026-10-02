@@ -216,6 +216,8 @@ class DailyPlan(Base):
     alert_ids: Mapped[list] = mapped_column(JSON, default=list)
     study_item_ids: Mapped[list] = mapped_column(JSON, default=list)
     completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Difficulty level (1-3) the shift was generated at. None for plans made before levels existed.
+    difficulty: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class Setting(Base):

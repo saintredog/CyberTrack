@@ -58,6 +58,11 @@ def create_app(config: dict | None = None) -> Flask:
             return f"{value:.1f}m"
         return f"{value / 60:.1f}h"
 
+    @app.template_filter("num")
+    def _fmt_num(value):
+        return f"{int(value or 0):,}"
+
+    from .progression import progression, standing
     from .soc.cases import STAGE_LABELS, STAGE_SHORT, STAGES, age, score_band
     from .soc.fields import highlight
     from .viz import TRACK_COLORS, URGENCY_COLORS
@@ -84,12 +89,14 @@ def create_app(config: dict | None = None) -> Flask:
             ctx["analyst_name"] = name
             ctx["analyst_initials"] = "".join(p[0] for p in name.split()[:2]).upper() or "A"
             ctx["nav_cwe_phase"] = db.get_int_setting(s, "cwe_phase")
+            ctx["nav_prog"] = progression(s, recent=0)
         except Exception:  # never let the chrome break a page
             ctx.setdefault("nav_open", 0)
             ctx.setdefault("nav_cases", 0)
             ctx.setdefault("analyst_name", "Analyst")
             ctx.setdefault("analyst_initials", "A")
             ctx.setdefault("nav_cwe_phase", 1)
+            ctx.setdefault("nav_prog", standing(0))
         return ctx
 
     if app.config["AUTO_SEED"]:

@@ -47,6 +47,17 @@ build familiarity with how real analyst tooling looks and moves.
   MTTT trend, and events by source.
 - **Training** covers four tracks (CySA+, Pen Test, WGU, CWE path) with progress rings, a
   26-week study heatmap, a spaced-repetition review queue, and CWE phase gating.
+- **Analyst progression**: every correct triage (+10), incorrect triage (+2), study log
+  (+5), shift turnover (+5), and closed case (report score / 5 for a true positive, +5 for
+  a false positive) earns XP. XP is computed from your history, so nothing can drift. You
+  climb from Tier 1 Analyst (0) to Tier 2 (600), Tier 3 (1,600) and SOC Lead (3,500). The
+  sidebar shows your tier and XP bar; Security Posture shows the tier ladder, what the next
+  tier changes, XP by source, and your last ten XP events.
+- **Difficulty scales with your tier.** Level 1 is 5 alerts a shift, about half malicious,
+  with decoding hints in the enrichment. Level 2 is 7 alerts with no hints. Level 3 is 9
+  alerts at about 40% malicious, so there is more benign noise to clear, like a real
+  queue. On Auto (the default) the level follows your tier, and SOC Lead plays Level 3. You
+  can pin a level on the Training page. The level applies when a day's shift is generated.
 
 There are eight detections, and each has a malicious variant and a benign look-alike that
 fires the same rule. Triage is a real decision, not pattern-matching the title. The rules
@@ -123,8 +134,11 @@ pytest                             # run the test suite
 - **Curriculum** lives in `data/curriculum/*.yaml`. Edit freely. In particular,
   `wgu.yaml` is seeded with the standard course list; mark courses you've passed with
   `active: false` (or delete them) so only remaining work gets scheduled.
-- **Shift size** (alerts per day, minutes per alert) is stored in settings with sensible
-  defaults in `cybertrack/db.py` (`DEFAULTS`).
+- **Shift difficulty** is set on the **Training** page: Auto (follows your tier) or a pinned
+  level 1-3.
+- **Shift size** comes from the difficulty level. If you save `alerts_per_day` in the
+  settings table yourself, that count wins over the level's. Minutes per alert sizes the
+  study block; defaults live in `cybertrack/db.py` (`DEFAULTS`).
 
 ## How it fits with the CWE interview-prep skill
 
@@ -145,6 +159,7 @@ cybertrack/
   analytics.py       aggregations behind every chart and KPI
   viz.py             chart geometry for server-rendered SVG (no JS chart library)
   planner.py         builds each day's plan (alerts + study)
+  progression.py     XP from history, analyst tiers, difficulty levels
   cli.py             seed / demo / reset commands
   soc/
     scenarios.py     the eight detections, each malicious + benign

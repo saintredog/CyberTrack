@@ -12,9 +12,10 @@ from .models import Base, Setting
 DEFAULTS = {
     "cwe_phase": "1",          # current phase of the CWE roadmap (1-4)
     "daily_minutes": "40",     # total daily budget, alerts + study
-    "alerts_per_day": "5",     # new alerts generated per shift
+    "alerts_per_day": "5",     # alerts per shift, used only once saved; otherwise the difficulty level sets it
     "minutes_per_alert": "3",  # time estimate used to size the study block
     "analyst_name": "Analyst", # shown in the top bar and as alert owner
+    "difficulty": "auto",      # auto (follows analyst tier) or a pinned level 1-3
 }
 
 
@@ -70,6 +71,11 @@ def today() -> date:
 def get_setting(session: Session, key: str) -> str:
     row = session.get(Setting, key)
     return row.value if row else DEFAULTS[key]
+
+
+def is_explicit(session: Session, key: str) -> bool:
+    """True when the user has saved this setting, as opposed to running on the default."""
+    return session.get(Setting, key) is not None
 
 
 def get_int_setting(session: Session, key: str) -> int:

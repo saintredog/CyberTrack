@@ -680,6 +680,55 @@ a.li:hover { background: var(--panel-2); text-decoration: none; }
 .note .when { color: var(--muted); font: 11.5px var(--mono); }
 .note .nb { margin-top: 4px; color: var(--ink-2); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 
+/* ------------------------------------------------------------------ progression */
+
+.progress.thin { display: block; height: 3px; margin-top: 6px; background: var(--line-2); }
+.progress.lg { height: 8px; border-radius: 4px; margin-top: 12px; }
+.progress.lg i { border-radius: 4px; }
+
+a.side-foot { color: var(--ink); }
+a.side-foot:hover { background: var(--panel-2); text-decoration: none; }
+.side-foot .who { flex: 1; min-width: 0; }
+.side-foot .who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-foot .tier-line { display: flex; justify-content: space-between; gap: 8px; }
+.side-foot .tier-line .xp { color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.prog { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.prog > div { padding: 14px 16px 16px; min-width: 0; }
+.prog-tier { border-right: 1px solid var(--line); }
+.tier-name { font-size: 24px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2; }
+.prog-xp { color: var(--ink-2); font-size: 13px; margin-top: 3px; }
+.prog-xp b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.prog-scale { display: flex; justify-content: space-between; gap: 8px; margin-top: 5px; color: var(--muted); font: 11px var(--mono); font-variant-numeric: tabular-nums; }
+.ladder { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.ladder li { border-top: 3px solid var(--line-2); padding-top: 6px; min-width: 0; }
+.ladder li b { display: block; font-size: 12px; font-weight: 650; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ladder li small { display: block; color: var(--faint); font: 11px var(--mono); white-space: nowrap; }
+.ladder li.done { border-color: #3d6b22; }
+.ladder li.cur { border-color: var(--accent-hi); }
+.ladder li.cur b { color: #fff; }
+.ladder li.done small, .ladder li.cur small { color: var(--muted); }
+.changes { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 7px; }
+.changes li { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; }
+.changes li .ico { color: var(--accent-hi); margin-top: 3px; }
+.prog-note { margin: 8px 0 0; color: var(--ink-2); font-size: 13px; }
+.shift-lvl { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--line-2); display: grid; gap: 5px; font-size: 12.5px; color: var(--ink-2); }
+.shift-lvl .k { display: inline-block; min-width: 82px; color: var(--muted); font-weight: 600; }
+.lvl-badge {
+  display: inline-block; font: 700 10.5px var(--mono); padding: 0 5px; border-radius: 4px;
+  border: 1px solid #2e4a20; color: var(--accent-hi); background: #142010;
+}
+.prog-src { border-top: 1px solid var(--line); }
+.prog-src .crumb { margin-bottom: 10px; }
+.xp-ev { gap: 10px; padding-top: 8px; padding-bottom: 8px; min-width: 0; } /* lets the ellipsis work inside .list's grid */
+.xp-ev .pts { flex: none; min-width: 30px; text-align: right; font: 700 12.5px var(--mono); font-variant-numeric: tabular-nums; }
+.xp-ev .ico { color: var(--muted); }
+.xp-ev .t, .xp-ev .s { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.xp-ev .t { font-size: 13px; }
+.xp-ev .when { flex: none; color: var(--muted); font: 11.5px var(--mono); white-space: nowrap; }
+.lvl-hint div + div { margin-top: 2px; }
+.lvl-hint b { color: var(--ink-2); font-weight: 600; }
+
 /* ------------------------------------------------------------------ responsive */
 
 @media (max-width: 1280px) {
@@ -692,6 +741,8 @@ a.li:hover { background: var(--panel-2); text-decoration: none; }
   .case-grid { grid-template-columns: minmax(0, 1fr) 320px; }
   .grade { grid-template-columns: 1fr; }
   .score-card { flex-direction: row; align-items: center; border-right: 0; border-bottom: 1px solid var(--line); }
+  .prog { grid-template-columns: 1fr; }
+  .prog-tier { border-right: 0; border-bottom: 1px solid var(--line); }
 }
 @media (max-width: 1020px) {
   .row.c2, .row.c3, .row.c21, .row.c12 { grid-template-columns: 1fr; }

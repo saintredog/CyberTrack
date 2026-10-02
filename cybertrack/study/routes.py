@@ -10,6 +10,7 @@ from .. import analytics, viz
 from ..db import get_int_setting, get_session, get_setting, set_setting, today
 from ..models import CurriculumItem, ReviewState, StudyLog
 from ..planner import ensure_today
+from ..progression import DIFFICULTY_CHOICES, LEVELS, difficulty_setting, level_for_tier, progression
 from .curriculum import TRACK_LABELS
 from .scheduler import apply_review, is_unlocked, pick_daily
 
@@ -69,12 +70,17 @@ def dashboard():
     ]
     activity = analytics.study_activity(session)
     week_start = day - timedelta(days=6)
+    prog = progression(session, recent=0)
     return render_template(
         "study/dashboard.html",
         tracks=ordered,
         cwe_phase=cwe_phase,
         daily_minutes=get_int_setting(session, "daily_minutes"),
         analyst=get_setting(session, "analyst_name"),
+        difficulty=difficulty_setting(session),
+        levels=LEVELS,
+        auto_level=level_for_tier(prog.tier),
+        tier=prog.tier,
         cwe_hint=CWE_SKILL_HINT,
         heat=viz.heatmap(activity, day, weeks=26),
         sessions_week=sum(v for d, v in activity.items() if d >= week_start),
@@ -148,6 +154,9 @@ def settings():
     name = (request.form.get("analyst_name") or "").strip()
     if name:
         set_setting(session, "analyst_name", name[:40])
+    difficulty = (request.form.get("difficulty") or "").strip().lower()
+    if difficulty in DIFFICULTY_CHOICES:
+        set_setting(session, "difficulty", difficulty)
     session.commit()
     flash("Settings updated. Tomorrow's plan uses the new values.", "ok")
     return redirect(request.form.get("next") or url_for("study.dashboard"))

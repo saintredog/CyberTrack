@@ -31,7 +31,7 @@
     {% call ui.panel_h('Study activity', 'last 26 weeks · ' ~ sessions_week ~ ' session' ~ ('' if sessions_week == 1 else 's') ~ ' this week') %}{% endcall %}
     <div class="panel-b">{{ ui.heatmap(heat) }}</div>
   </div>
-  <div class="panel">
+  <div class="panel" id="settings">
     {% call ui.panel_h('Settings') %}{% endcall %}
     <form class="panel-b settings-form" method="post" action="{{ url_for('study.settings') }}">
       <div>
@@ -47,6 +47,17 @@
       <div class="full">
         <label class="f" for="analyst_name">Analyst name</label>
         <input type="text" id="analyst_name" name="analyst_name" value="{{ analyst }}" maxlength="40">
+      </div>
+      <div class="full">
+        <label class="f" for="difficulty">Shift difficulty</label>
+        <select id="difficulty" name="difficulty" aria-describedby="difficulty-hint">
+          <option value="auto" {{ 'selected' if difficulty == 'auto' }}>Auto &middot; follows your tier (now Level {{ auto_level }})</option>
+          {% for n, lv in levels.items() %}<option value="{{ n }}" {{ 'selected' if difficulty == n|string }}>Level {{ n }} &middot; {{ lv.name }}</option>{% endfor %}
+        </select>
+        <div class="hint-line lvl-hint" id="difficulty-hint">
+          {% for n, lv in levels.items() %}<div><b>{{ n }} &middot; {{ lv.name }}:</b> {{ lv.summary }}</div>{% endfor %}
+          <div><b>Auto:</b> Tier 1 plays Level 1, Tier 2 plays Level 2, Tier 3 and SOC Lead play Level 3. You're {{ tier.name }}.</div>
+        </div>
       </div>
       <div class="full" style="margin-top:12px"><button class="btn primary" type="submit">Save settings</button></div>
       <div class="full hint-line">Phases above your current one stay locked so you're never handed exploit dev before C.</div>

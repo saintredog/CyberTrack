@@ -169,6 +169,100 @@
   </div>
 </div>
 
+{# Analyst progression: XP comes from history; the tier sets difficulty on Auto. #}
+<div class="row c21 top" id="progression">
+  <div class="panel">
+    {% call ui.panel_h('Analyst progression', 'XP from triage, study, turnover and closed cases', 'rank') %}
+      <div class="actions"><a class="btn sm" href="{{ url_for('study.dashboard') }}#settings">Difficulty {{ ui.icon('arrow', 'sm') }}</a></div>
+    {% endcall %}
+    <div class="prog">
+      <div class="prog-tier">
+        <div class="crumb">CURRENT TIER</div>
+        <div class="tier-name">{{ prog.tier.name }}</div>
+        <div class="prog-xp"><b>{{ prog.xp|num }}</b> XP
+          {%- if prog.next_tier %} &middot; <b>{{ prog.xp_to_next|num }}</b> to {{ prog.next_tier.name }}{% else %} &middot; top tier{% endif %}</div>
+        {% set into_label = (prog.xp_into_tier|num ~ ' / ' ~ prog.tier_span|num ~ ' XP') if prog.next_tier else (prog.xp_into_tier|num ~ ' XP past ' ~ prog.tier.min_xp|num) %}
+        <div class="progress lg" role="progressbar" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ prog.pct }}"
+             aria-label="{{ prog.pct }}% through {{ prog.tier.name }}" data-tip="{{ into_label }}||{{ prog.pct }}% through {{ prog.tier.name }}"><i style="width:{{ prog.pct }}%"></i></div>
+        <div class="prog-scale">
+          <span>{{ prog.tier.min_xp|num }}</span>
+          <span>{{ prog.pct }}% through tier</span>
+          <span>{{ prog.next_tier.min_xp|num if prog.next_tier else 'max' }}</span>
+        </div>
+        <ol class="ladder" aria-label="Tier ladder">
+          {% for t in tiers %}
+            <li class="{{ 'done' if t.number < prog.tier.number else 'cur' if t.number == prog.tier.number }}"{% if t.number == prog.tier.number %} aria-current="step"{% endif %}>
+              <b>{{ t.name|replace(' Analyst', '') }}</b><small>{{ t.min_xp|num }} XP</small>
+            </li>
+          {% endfor %}
+        </ol>
+      </div>
+
+      <div class="prog-next">
+        {% if prog.next_tier %}
+          <div class="crumb">AT {{ prog.next_tier.name|upper }} ({{ prog.next_tier.min_xp|num }} XP)</div>
+          {% if next_changes %}
+            <ul class="changes">
+              {% for c in next_changes %}<li>{{ ui.icon('arrow', 'sm') }}<span>{{ c }}</span></li>{% endfor %}
+            </ul>
+          {% else %}
+            <p class="prog-note">No change to shifts: {{ prog.next_tier.name }} keeps Level {{ level_next.number }} ({{ level_next.name }}), the hardest level. The title is the reward.</p>
+          {% endif %}
+          <div class="hint-line">
+            {% if difficulty == 'auto' %}Difficulty is on Auto, so this applies from the first shift after you reach {{ prog.next_tier.name }}.
+            {% else %}Difficulty is pinned at Level {{ difficulty }}, so shifts stay as they are until you set it back to Auto.{% endif %}
+          </div>
+        {% else %}
+          <div class="crumb">TOP TIER</div>
+          <p class="prog-note">You've reached {{ prog.tier.name }}. On Auto, shifts run at Level {{ top_level.number }} ({{ top_level.name }}): {{ top_level.summary }}</p>
+          {% if difficulty != 'auto' %}<div class="hint-line">Difficulty is pinned at Level {{ difficulty }}.</div>{% endif %}
+        {% endif %}
+
+        <div class="shift-lvl">
+          <div><span class="k">Today's shift</span>
+            {% if level_today %}<span class="lvl-badge">L{{ level_today.number }}</span> {{ level_today.name }} &middot; {{ alerts_total }} alerts{% if not level_today.hints %} &middot; no hints{% endif %}
+            {% else %}generated before difficulty levels &middot; {{ alerts_total }} alerts{% endif %}</div>
+          {% if not level_today or level_tomorrow.number != level_today.number or alerts_tomorrow != alerts_total %}
+          <div><span class="k">Next shift</span>
+            <span class="lvl-badge">L{{ level_tomorrow.number }}</span> {{ level_tomorrow.name }} &middot; {{ alerts_tomorrow }} alerts{% if not level_tomorrow.hints %} &middot; no hints{% endif %}</div>
+          {% endif %}
+          <div><span class="k">Difficulty</span>{% if difficulty == 'auto' %}Auto (follows tier){% else %}Pinned at Level {{ difficulty }}{% endif %}{% if alerts_explicit %} &middot; alerts per day fixed at {{ alerts_tomorrow }}{% endif %}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-b prog-src">
+      <div class="crumb">XP BY SOURCE</div>
+      {{ ui.hbars(xp_rows, xp_max, suffix=' XP') }}
+      <details class="tableview"><summary>{{ ui.icon('chev', 'sm') }}View as table</summary>
+        <table><thead><tr><th>Source</th><th>Rule</th><th class="num">XP</th></tr></thead>
+        <tbody>
+          {% for r in xp_rows %}<tr><td>{{ r.label }}</td><td>{{ r.rule }}</td><td class="num">{{ r.value|num }}</td></tr>{% endfor %}
+          <tr><td><b>Total</b></td><td></td><td class="num"><b>{{ prog.xp|num }}</b></td></tr>
+        </tbody></table>
+      </details>
+    </div>
+  </div>
+
+  <div class="panel">
+    {% call ui.panel_h('Recent XP', 'last ' ~ prog.events|length ~ ' event' ~ ('' if prog.events|length == 1 else 's'), 'bolt') %}{% endcall %}
+    {% if prog.events %}
+      <div class="list">
+        {% for e in prog.events %}
+        <div class="li xp-ev">
+          <span class="pts">+{{ e.points }}</span>
+          {{ ui.icon({'triage': 'review', 'study': 'book', 'turnover': 'turnover', 'case': 'case'}[e.source], 'sm') }}
+          <span class="grow"><div class="t">{{ e.label }}</div><div class="s" title="{{ e.detail }}">{{ e.detail }}</div></span>
+          <span class="when">{{ e.on.strftime('%d %b') }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty"><b>No XP yet</b>Triage an alert, log a study session, or write a turnover to start earning.</div>
+    {% endif %}
+  </div>
+</div>
+
 <div class="panel">
   {% call ui.panel_h('MITRE ATT&CK techniques observed', 'last 7 days') %}{% endcall %}
   <div class="panel-b" style="display:flex;flex-wrap:wrap;gap:8px">

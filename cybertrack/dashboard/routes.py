@@ -10,6 +10,17 @@ from .. import analytics, viz
 from ..db import get_int_setting, get_session, today
 from ..models import Alert, CurriculumItem, StudyLog, Triage, Turnover
 from ..planner import ensure_today, previous_turnover
+from ..progression import (
+    LEVELS,
+    SOURCE_LABELS,
+    SOURCE_RULES,
+    TIERS,
+    difficulty_setting,
+    level_for_tier,
+    progression,
+    shift_params,
+    tier_changes,
+)
 from ..soc.cases import open_cases
 from ..soc.generator import metrics
 
@@ -70,9 +81,31 @@ def home():
          "detail": "saved" if turnover_today else "not yet", "href": "soc.turnover"},
     ]
 
+    # Analyst progression: tier, XP, and what the next tier would change about a shift.
+    prog = progression(session, recent=10)
+    shift = shift_params(session)
+    setting = difficulty_setting(session)
+    level_next = LEVELS[level_for_tier(prog.next_tier)] if prog.next_tier else None
+    level_now = LEVELS[level_for_tier(prog.tier)]
+    xp_rows = [
+        {"label": SOURCE_LABELS[k], "value": v, "rule": SOURCE_RULES[k]} for k, v in prog.breakdown.items()
+    ]
+
     return render_template(
         "dashboard/home.html",
         day=day,
+        prog=prog,
+        difficulty=setting,
+        level_today=LEVELS.get(plan.difficulty) if plan.difficulty else None,
+        level_tomorrow=shift.level,
+        alerts_tomorrow=shift.alerts,
+        alerts_explicit=shift.alerts_explicit,
+        level_next=level_next,
+        next_changes=tier_changes(level_now, level_next, shift.alerts_explicit) if level_next else [],
+        xp_rows=xp_rows,
+        xp_max=max([r["value"] for r in xp_rows] + [1]),
+        tiers=TIERS,
+        top_level=LEVELS[max(LEVELS)],
         steps=steps,
         loop_done=sum(1 for s in steps if s["done"]),
         open_total=open_total,

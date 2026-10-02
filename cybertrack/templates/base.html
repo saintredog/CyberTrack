@@ -33,6 +33,7 @@
   <symbol id="i-pivot" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5M11 8v6M8 11h6"/></symbol>
   <symbol id="i-case" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V4.8h6V7"/><path d="M3 12.5h18"/><path d="M11 12.5v2h2v-2"/></symbol>
   <symbol id="i-note" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></symbol>
+  <symbol id="i-rank" viewBox="0 0 24 24"><path d="M5 10l7-5 7 5"/><path d="M5 15l7-5 7 5"/><path d="M5 20l7-5 7 5"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol>
 </svg>
 
@@ -64,10 +65,15 @@
       <a href="{{ url_for('study.dashboard') }}" class="{{ 'active' if ep == 'study.dashboard' }}">
         <svg class="ico"><use href="#i-training"/></svg>Training</a>
     </nav>
-    <div class="side-foot">
+    <a class="side-foot" href="{{ url_for('dashboard.home') }}#progression" title="Analyst progression &middot; CWE phase {{ nav_cwe_phase }}">
       <div class="avatar" aria-hidden="true">{{ analyst_initials }}</div>
-      <div class="who"><b>{{ analyst_name }}</b><span>Tier 1 analyst &middot; CWE phase {{ nav_cwe_phase }}</span></div>
-    </div>
+      <div class="who">
+        <b>{{ analyst_name }}</b>
+        <span class="tier-line"><span>{{ nav_prog.tier.name }}</span><span class="xp">{{ nav_prog.xp|num }} XP</span></span>
+        <span class="progress thin" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ nav_prog.pct }}"
+              aria-label="{{ nav_prog.pct }}% of the way to {{ nav_prog.next_tier.name if nav_prog.next_tier else 'the top tier' }}"><i style="width:{{ nav_prog.pct }}%"></i></span>
+      </div>
+    </a>
   </aside>
 
   <div class="main">

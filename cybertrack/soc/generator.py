@@ -1,8 +1,10 @@
 """Builds a shift's alert batch and grades triage decisions."""
 from __future__ import annotations
 
+import math
 import random
 from datetime import date, datetime
+from fractions import Fraction
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -16,11 +18,33 @@ def _rng_for(day: date, salt: int = 0) -> random.Random:
     return random.Random(day.toordinal() * 7919 + salt)
 
 
-def generate_shift(session: Session, day: date, count: int, salt: int = 0) -> list[Alert]:
-    """Create `count` alerts for `day`. Roughly half malicious, never all one kind.
+HINT_KEY = "Hint"  # enrichment entry that coaches the analyst; dropped above difficulty level 1
+
+
+def _malicious_flags(count: int, share: float) -> list[bool]:
+    """`count` flags, ceil(count * share) of them True, spread evenly before shuffling.
+
+    At share 0.5 this is True, False, True, ... exactly as earlier builds made it,
+    so the default shift for a given day is unchanged.
+    """
+    frac = Fraction(min(max(share, 0.0), 1.0)).limit_denominator(1000)
+    return [math.ceil((i + 1) * frac) > math.ceil(i * frac) for i in range(count)]
+
+
+def generate_shift(
+    session: Session,
+    day: date,
+    count: int,
+    salt: int = 0,
+    malicious_share: float = 0.5,
+    hints: bool = True,
+) -> list[Alert]:
+    """Create `count` alerts for `day`. About `malicious_share` malicious, never all one kind.
 
     Scenarios are drawn without repeats until every rule has been used, so a
     small daily batch still rotates through all eight detections over a few days.
+    With `hints=False` the coaching "Hint" enrichment entry is left out, so the
+    analyst has to know the technique (decoding -enc, say) unprompted.
     """
     rng = _rng_for(day, salt)
     names = list(SCENARIOS)
@@ -29,7 +53,7 @@ def generate_shift(session: Session, day: date, count: int, salt: int = 0) -> li
     offset = day.toordinal() % len(names)
     names = names[offset:] + names[:offset]
 
-    malicious_flags = [i % 2 == 0 for i in range(count)]
+    malicious_flags = _malicious_flags(count, malicious_share)
     rng.shuffle(malicious_flags)
     if count >= 2 and len(set(malicious_flags)) == 1:
         malicious_flags[0] = not malicious_flags[0]
@@ -39,6 +63,7 @@ def generate_shift(session: Session, day: date, count: int, salt: int = 0) -> li
     for i in range(count):
         name = names[i % len(names)]
         spec = SCENARIOS[name](rng, base, malicious_flags[i])
+        enrichment = spec.enrichment if hints else {k: v for k, v in spec.enrichment.items() if k != HINT_KEY}
         alert = Alert(
             shift_date=day,
             created_at=_first_timestamp(spec.raw_log, base),
@@ -48,7 +73,7 @@ def generate_shift(session: Session, day: date, count: int, salt: int = 0) -> li
             title=spec.title,
             technique=spec.technique,
             raw_log=spec.raw_log,
-            enrichment=spec.enrichment,
+            enrichment=enrichment,
             true_disposition=spec.true_disposition,
             indicators=spec.indicators,
             explanation=spec.explanation,
