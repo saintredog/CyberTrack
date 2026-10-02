@@ -48,9 +48,41 @@ def create_app(config: dict | None = None) -> Flask:
     def _fmt_dt(value, fmt="%Y-%m-%d %H:%M"):
         return value.strftime(fmt) if value else ""
 
+    @app.template_filter("mins")
+    def _fmt_mins(value):
+        if value is None:
+            return "--"
+        if value < 1:
+            return f"{round(value * 60)}s"
+        if value < 60:
+            return f"{value:.1f}m"
+        return f"{value / 60:.1f}h"
+
+    from .soc.fields import highlight
+    from .viz import TRACK_COLORS, URGENCY_COLORS
+
+    app.add_template_filter(highlight, "highlight")
+
     @app.context_processor
-    def _inject_today():
-        return {"today": db.today()}
+    def _inject_shell():
+        from sqlalchemy import func, select
+
+        from .models import Alert
+
+        ctx = {"today": db.today(), "URGENCY_COLORS": URGENCY_COLORS, "TRACK_COLORS": TRACK_COLORS}
+        try:
+            s = db.get_session()
+            ctx["nav_open"] = s.scalar(select(func.count()).select_from(Alert).where(Alert.status == "new"))
+            name = db.get_setting(s, "analyst_name")
+            ctx["analyst_name"] = name
+            ctx["analyst_initials"] = "".join(p[0] for p in name.split()[:2]).upper() or "A"
+            ctx["nav_cwe_phase"] = db.get_int_setting(s, "cwe_phase")
+        except Exception:  # never let the chrome break a page
+            ctx.setdefault("nav_open", 0)
+            ctx.setdefault("analyst_name", "Analyst")
+            ctx.setdefault("analyst_initials", "A")
+            ctx.setdefault("nav_cwe_phase", 1)
+        return ctx
 
     if app.config["AUTO_SEED"]:
         from .study.curriculum import load_curriculum_if_empty

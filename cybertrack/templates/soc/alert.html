@@ -1,63 +1,164 @@
 {% extends "base.html" %}
-{% block title %}{{ alert.title }} &middot; CyberTrack{% endblock %}
+{% import "macros.html" as ui %}
+{% block title %}#{{ '%05d'|format(alert.id) }} {{ alert.title }}{% endblock %}
 {% block content %}
-<p><a href="{{ url_for('soc.queue') }}">&larr; Back to queue</a></p>
-<h1><span class="sev sev-{{ alert.severity }}">{{ alert.severity }}</span> {{ alert.title }}</h1>
-<p class="lede">
-  <span class="chip src">{{ alert.source }}</span>
-  &middot; {{ alert.created_at|dt }} &middot; ATT&amp;CK {{ alert.technique }}
-</p>
+<div class="page-head">
+  <div style="min-width:0">
+    <div class="crumb"><a href="{{ url_for('soc.queue') }}">Incident Review</a> / Investigation / #{{ '%05d'|format(alert.id) }}</div>
+    <h1>{{ alert.title }}</h1>
+    <div class="inv-head">
+      {{ ui.urg(alert.severity) }}
+      {{ ui.status(alert.status) }}
+      <span class="tag src">{{ alert.source }}</span>
+      <a class="tag attack" href="https://attack.mitre.org/techniques/{{ alert.technique|replace('.', '/') }}/" target="_blank" rel="noopener noreferrer" title="Open in MITRE ATT&amp;CK">{{ alert.technique }}</a>
+      <span class="tag">{{ rule_label }}</span>
+      <span class="hint-line" style="margin:0">{{ alert.created_at|dt('%Y-%m-%d %H:%M:%S') }}</span>
+    </div>
+  </div>
+  <div class="head-actions">
+    <a class="btn" href="{{ url_for('soc.queue') }}">{{ ui.icon('back', 'sm') }}Queue</a>
+    {% if next_id %}<a class="btn" id="next-alert" href="{{ url_for('soc.alert_detail', alert_id=next_id) }}">Next open <kbd>n</kbd></a>{% endif %}
+  </div>
+</div>
 
-<h2>Raw log</h2>
-<pre class="log">{{ alert.raw_log }}</pre>
+<div class="inv">
+  {# ---------------- left: interesting fields ---------------- #}
+  <aside class="panel fields">
+    {% call ui.panel_h('Interesting fields', fields|length) %}{% endcall %}
+    <div style="padding:4px 0 10px">
+      {% for name, values in fields.items() %}
+        <div class="fname"><span class="typ">{{ 'a' if name not in ('port', 'event_code', 'bytes_out', 'bytes_in', 'duration') else '#' }}</span>{{ name }}<span class="n">{{ values|length }}</span></div>
+        {% for v, c in values.most_common(4) %}
+          <a class="fval" href="{{ url_for('soc.queue', q='"' ~ v ~ '"', status='any') }}" title="Search all events for {{ v }}">{{ v }}<span class="c">{{ c }}</span></a>
+        {% endfor %}
+        <div class="sep"></div>
+      {% else %}
+        <div class="empty">No fields extracted.</div>
+      {% endfor %}
+    </div>
+  </aside>
 
-{% if alert.enrichment %}
-<h2>Enrichment</h2>
-<dl class="enrich">
-  {% for k, v in alert.enrichment.items() %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}
-</dl>
-{% endif %}
+  {# ---------------- center: event + enrichment + verdict ---------------- #}
+  <div style="display:grid;gap:16px;min-width:0">
+    {% if alert.triage %}
+      {% set ok = alert.triage.correct %}
+      <div class="verdict {{ 'ok' if ok else 'no' }}">
+        <div class="vh">
+          <span class="check {{ 'on' if ok }}" style="{{ '' if ok else 'background:var(--crit);border-color:var(--crit);color:#fff' }}">{{ ui.icon('check' if ok else 'x', 'sm') }}</span>
+          <div style="flex:1">
+            <div class="big">{{ 'Correct call' if ok else 'Missed' }}</div>
+            <div style="color:var(--ink-2);font-size:13px">You said <b>{{ alert.triage.user_disposition }}</b> &middot; ground truth <b>{{ alert.true_disposition }}</b>{% if mttt is not none %} &middot; decided in {{ mttt|mins }}{% endif %}</div>
+          </div>
+        </div>
+        <div class="vb">
+          {% if not ok and alert.true_disposition == 'malicious' %}
+            <div class="callout fn"><b>False negative.</b> A real threat got closed. In a live SOC this is the expensive kind of miss.</div>
+          {% elif not ok %}
+            <div class="callout fp"><b>False positive.</b> Benign activity escalated. Noisy and it burns IR time, but safer than the reverse.</div>
+          {% endif %}
+          <h4>Your reasoning</h4>
+          <p>{{ alert.triage.reason }}</p>
+          {% if alert.triage.notes %}<p style="color:var(--muted)">{{ alert.triage.notes }}</p>{% endif %}
+          <h4>What gave it away</h4>
+          <ul>{% for ind in alert.indicators %}<li>{{ ind }}</li>{% endfor %}</ul>
+          <h4>Analysis</h4>
+          <p>{{ alert.explanation }}</p>
+          {% if alert.response %}
+            <h4>Response playbook</h4>
+            <ol style="margin:0;padding-left:20px">{% for r in alert.response %}<li style="margin:4px 0">{{ r }}</li>{% endfor %}</ol>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
 
-{% if alert.triage %}
-  {% set correct = alert.triage.correct %}
-  <div class="verdict {{ 'correct' if correct else 'wrong' }}">
-    <h3><span class="tag">{{ 'Correct' if correct else 'Missed' }}</span></h3>
-    <p>
-      You called it <strong>{{ alert.triage.user_disposition }}</strong>.
-      Ground truth: <strong>{{ alert.true_disposition }}</strong>.
-      {% if not correct and alert.true_disposition == 'malicious' %}
-        That's a false negative: a real threat closed out. In a live SOC this is the costly kind of miss.
-      {% elif not correct %}
-        That's a false positive: benign activity escalated. Noisy, but safer than the reverse.
-      {% endif %}
-    </p>
-    <p class="muted">Your reason: {{ alert.triage.reason }}</p>
-    {% if alert.triage.notes %}<p class="muted">Your notes: {{ alert.triage.notes }}</p>{% endif %}
+    <div class="panel">
+      {% call ui.panel_h('Raw event', alert.raw_log.splitlines()|length ~ ' lines · ' ~ alert.source|upper) %}{% endcall %}
+      <div class="event" id="event">
+        {% for line in alert.raw_log.splitlines() %}<div class="ln"><span class="no">{{ loop.index }}</span><code>{{ line|highlight }}</code></div>{% endfor %}
+      </div>
+      <textarea id="raw-log" hidden>{{ alert.raw_log }}</textarea>
+    </div>
 
-    <strong>What gave it away</strong>
-    <ul class="tight">{% for ind in alert.indicators %}<li>{{ ind }}</li>{% endfor %}</ul>
+    {% if alert.enrichment %}
+    <div class="panel">
+      {% call ui.panel_h('Enrichment', 'asset, identity and threat-intel context') %}{% endcall %}
+      <div class="kv">
+        {% for k, v in alert.enrichment.items() %}<div class="k">{{ k }}</div><div class="v">{{ v }}</div>{% endfor %}
+      </div>
+    </div>
+    {% endif %}
 
-    <strong>Analysis</strong>
-    <p>{{ alert.explanation }}</p>
-
-    {% if alert.response %}
-    <strong>Response actions</strong>
-    <ul class="tight">{% for r in alert.response %}<li>{{ r }}</li>{% endfor %}</ul>
+    {% if alert.triage and related %}
+    <div class="panel">
+      {% call ui.panel_h('Prior cases, same detection', 'compare what made each one different') %}{% endcall %}
+      <div class="list">
+        {% for r in related %}
+          <a class="li" href="{{ url_for('soc.alert_detail', alert_id=r.id) }}">
+            <span class="tag {{ 'attack' if r.true_disposition == 'malicious' }}">{{ r.true_disposition }}</span>
+            <span class="grow"><div class="t">#{{ '%05d'|format(r.id) }} &middot; {{ r.shift_date.strftime('%a %d %b') }}</div><div class="s">{{ r.indicators[0] }}</div></span>
+            {{ ui.icon('chev', 'sm') }}
+          </a>
+        {% endfor %}
+      </div>
+    </div>
     {% endif %}
   </div>
-  <a class="cta" href="{{ url_for('soc.queue') }}">Next alert</a>
-{% else %}
-  <h2>Your call</h2>
-  <form class="triage" method="post" action="{{ url_for('soc.triage', alert_id=alert.id) }}">
-    <label for="reason">Reason (required) &mdash; what in the log or enrichment decided it?</label>
-    <input type="text" id="reason" name="reason" required placeholder="e.g. signed vendor process, allowlisted domain, fleet-wide prevalence">
-    <label for="notes">Analyst notes (optional)</label>
-    <textarea id="notes" name="notes" placeholder="Anything you'd hand off or investigate further"></textarea>
-    <div class="btn-row">
-      <button class="danger" name="disposition" value="malicious" type="submit">Escalate &mdash; malicious</button>
-      <button class="safe" name="disposition" value="benign" type="submit">Close &mdash; benign</button>
+
+  {# ---------------- right: triage + tools ---------------- #}
+  <div class="inv-right">
+    <div class="sticky" style="display:grid;gap:16px">
+      {% if not alert.triage %}
+      <div class="panel triage-box">
+        {% call ui.panel_h('Your call', 'hidden answer key') %}{% endcall %}
+        <form class="panel-b" method="post" action="{{ url_for('soc.triage', alert_id=alert.id) }}" id="triage-form">
+          <label class="f" for="reason" style="margin-top:0">Reason <span style="color:var(--bad-ink)">*</span></label>
+          <input type="text" id="reason" name="reason" required autocomplete="off"
+                 placeholder="What in the event or enrichment decided it?">
+          <label class="f" for="notes">Analyst notes</label>
+          <textarea id="notes" name="notes" placeholder="Handoff notes, follow-ups, IOCs to hunt"></textarea>
+          <div class="pending" id="pending"></div>
+          <div style="display:grid;gap:8px;margin-top:12px">
+            <button class="btn lg danger" name="disposition" value="malicious" type="submit" data-disp="malicious">{{ ui.icon('alert', 'sm') }}Escalate as malicious<kbd>e</kbd></button>
+            <button class="btn lg safe" name="disposition" value="benign" type="submit" data-disp="benign">{{ ui.icon('check', 'sm') }}Close as benign<kbd>c</kbd></button>
+          </div>
+          <div class="hint-line">{{ open_left }} other open alert{{ '' if open_left == 1 else 's' }} in the queue.</div>
+        </form>
+      </div>
+      {% else %}
+      <div class="panel">
+        {% call ui.panel_h('Disposition') %}{% endcall %}
+        <div class="panel-b" style="display:grid;gap:10px">
+          <div class="kv" style="margin:-14px -16px 0">
+            <div class="k">Status</div><div class="v">{{ ui.status(alert.status) }}</div>
+            <div class="k">Owner</div><div class="v">{{ analyst_name }}</div>
+            <div class="k">Decided</div><div class="v">{{ alert.triage.decided_at|dt('%d %b %H:%M') }}</div>
+          </div>
+          {% if next_id %}
+            <a class="btn lg primary" href="{{ url_for('soc.alert_detail', alert_id=next_id) }}">Next open alert {{ ui.icon('arrow', 'sm') }}</a>
+          {% else %}
+            <a class="btn lg primary" href="{{ url_for('soc.turnover') }}">Queue clear: write turnover {{ ui.icon('arrow', 'sm') }}</a>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="panel decoder">
+        {% call ui.panel_h('Decoder', 'CyberChef-lite', 'code') %}{% endcall %}
+        <div class="panel-b">
+          <textarea id="dec-in" spellcheck="false" placeholder="Paste a blob, or grab one from the event"></textarea>
+          <div class="controls">
+            <select id="dec-mode" aria-label="Decode as">
+              <option value="b64-utf16">Base64 &rarr; UTF-16LE (PowerShell -enc)</option>
+              <option value="b64">Base64 &rarr; UTF-8</option>
+              <option value="url">URL decode</option>
+              <option value="hex">Hex &rarr; text</option>
+            </select>
+            <button class="btn sm" type="button" id="dec-grab" title="Grab the longest encoded-looking token from the event">Grab</button>
+          </div>
+          <div class="out" id="dec-out" aria-live="polite">Output appears here.</div>
+        </div>
+      </div>
     </div>
-    <p class="muted" style="margin-top:12px">The verdict and ground truth stay hidden until you decide.</p>
-  </form>
-{% endif %}
+  </div>
+</div>
 {% endblock %}

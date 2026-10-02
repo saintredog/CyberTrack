@@ -40,6 +40,8 @@ class Alert(Base):
     explanation: Mapped[str] = mapped_column(Text)
     response: Mapped[list] = mapped_column(JSON, default=list)
     status: Mapped[str] = mapped_column(String(16), default="new")  # new | closed | escalated
+    # Set the first time the alert is opened; used for mean time to triage (MTTT).
+    first_viewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     triage: Mapped["Triage | None"] = relationship(back_populates="alert", uselist=False)
 

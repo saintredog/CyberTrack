@@ -84,3 +84,35 @@ def test_cwe_phase_setting_locks_higher_phases(client, app):
     client.post("/study/settings", data={"cwe_phase": "1", "daily_minutes": "40"}, follow_redirects=True)
     r = client.get("/study/")
     assert b"locked" in r.data.lower()
+
+
+def test_migration_adds_new_columns_to_old_database(tmp_path):
+    import sqlite3
+
+    from cybertrack import create_app
+
+    path = tmp_path / "old.db"
+    create_app({"DATABASE_URL": f"sqlite:///{path}", "TESTING": True})
+    con = sqlite3.connect(path)
+    con.execute("ALTER TABLE alerts DROP COLUMN first_viewed_at")  # simulate the pre-UI schema
+    con.commit()
+    assert "first_viewed_at" not in [r[1] for r in con.execute("PRAGMA table_info(alerts)")]
+    con.close()
+
+    app = create_app({"DATABASE_URL": f"sqlite:///{path}", "TESTING": True, "TODAY": "2026-10-02"})
+    con = sqlite3.connect(path)
+    assert "first_viewed_at" in [r[1] for r in con.execute("PRAGMA table_info(alerts)")]
+    con.close()
+    assert app.test_client().get("/").status_code == 200
+
+
+def test_every_page_renders_and_alert_view_sets_first_viewed(client, app):
+    for path in ["/", "/soc/", "/soc/?q=urgency%3Dhigh+earliest%3D-7d&status=any", "/soc/?q=bogus%3Dx",
+                 "/soc/turnover", "/soc/metrics", "/study/", "/study/today"]:
+        assert client.get(path).status_code == 200, path
+    with app.app_context():
+        aid = get_session().scalar(select(Alert.id))
+    r = client.get(f"/soc/alert/{aid}")
+    assert r.status_code == 200 and b"Interesting fields" in r.data
+    with app.app_context():
+        assert get_session().get(Alert, aid).first_viewed_at is not None

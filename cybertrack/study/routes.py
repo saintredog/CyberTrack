@@ -1,12 +1,13 @@
 """Study blueprint: track dashboard, mark complete, phase + budget settings."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import timedelta
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from sqlalchemy import select
 
-from ..db import get_int_setting, get_session, set_setting, today
+from .. import analytics, viz
+from ..db import get_int_setting, get_session, get_setting, set_setting, today
 from ..models import CurriculumItem, ReviewState, StudyLog
 from ..planner import ensure_today
 from .curriculum import TRACK_LABELS
@@ -53,35 +54,49 @@ def dashboard():
                 "today": item.id in plan_ids,
             }
         )
-    for t in tracks.values():
+    for key, t in tracks.items():
         c = t.pop("_counts", [0, 0])
         t["done"] = c[0]
         t["total"] = c[1]
+        t["ring"] = viz.ring(c[0], c[1])
+        t["color"] = viz.TRACK_COLORS.get(key, viz.SERIES[0])
+        t["due"] = sum(1 for rows in t["sections"].values() for r in rows if r["due"] and not r["locked"])
+        t["locked"] = sum(1 for rows in t["sections"].values() for r in rows if r["locked"])
 
     order = ["cwe", "cysa", "pentest", "wgu"]
     ordered = [(k, tracks[k]) for k in order if k in tracks] + [
         (k, v) for k, v in tracks.items() if k not in order
     ]
+    activity = analytics.study_activity(session)
+    week_start = day - timedelta(days=6)
     return render_template(
         "study/dashboard.html",
         tracks=ordered,
         cwe_phase=cwe_phase,
         daily_minutes=get_int_setting(session, "daily_minutes"),
+        analyst=get_setting(session, "analyst_name"),
         cwe_hint=CWE_SKILL_HINT,
+        heat=viz.heatmap(activity, day, weeks=26),
+        sessions_week=sum(v for d, v in activity.items() if d >= week_start),
+        due=analytics.due_items(session, day, cwe_phase),
     )
 
 
 @bp.route("/today")
 def today_tasks():
     session = get_session()
-    ensure_today(session)
     cwe_phase = get_int_setting(session, "cwe_phase")
     plan = ensure_today(session)
     items = {i.id: i for i in _items(session)}
     picks = [items[i] for i in plan.study_item_ids if i in items]
+    logged = {
+        l.item_id: l for l in session.scalars(select(StudyLog).where(StudyLog.logged_on == today()))
+    }
     return render_template(
         "study/today.html",
         picks=picks,
+        logged=logged,
+        planned_minutes=sum(i.minutes for i in picks),
         cwe_phase=cwe_phase,
         cwe_hint=CWE_SKILL_HINT,
     )
@@ -130,6 +145,9 @@ def settings():
         set_setting(session, "cwe_phase", phase)
     if minutes and minutes.isdigit() and int(minutes) >= 10:
         set_setting(session, "daily_minutes", minutes)
+    name = (request.form.get("analyst_name") or "").strip()
+    if name:
+        set_setting(session, "analyst_name", name[:40])
     session.commit()
     flash("Settings updated. Tomorrow's plan uses the new values.", "ok")
     return redirect(request.form.get("next") or url_for("study.dashboard"))

@@ -3,35 +3,113 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}CyberTrack{% endblock %}</title>
+  <title>{% block title %}CyberTrack{% endblock %} &middot; CyberTrack</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2l12 7v14l-12 7-12-7V9z' fill='%2365a637'/%3E%3Cpath d='M8 17h4l2-5 4 9 2-4h4' stroke='%230b1606' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
 </head>
 <body>
-<header class="topbar">
-  <a class="brand" href="{{ url_for('dashboard.home') }}">CYBER<span>TRACK</span></a>
-  <nav>
-    <a href="{{ url_for('dashboard.home') }}" class="{{ 'active' if request.endpoint == 'dashboard.home' }}">Dashboard</a>
-    <a href="{{ url_for('soc.queue') }}" class="{{ 'active' if request.blueprint == 'soc' }}">SOC Queue</a>
-    <a href="{{ url_for('study.dashboard') }}" class="{{ 'active' if request.blueprint == 'study' }}">Study</a>
-    <a href="{{ url_for('soc.turnover') }}">Turnover</a>
-    <a href="{{ url_for('soc.metrics_view') }}">Metrics</a>
-  </nav>
-  <span class="clock">{{ today.strftime('%a %d %b %Y') }}</span>
-</header>
+<svg class="svg-sprite" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-posture" viewBox="0 0 24 24"><path d="M3.5 17a9 9 0 1 1 17 0"/><path d="M12 13l4.5-4.5"/><circle cx="12" cy="13.5" r="1.6"/></symbol>
+  <symbol id="i-review" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.8-3.4 8-8 9-4.6-1-8-4.2-8-9V6z"/><path d="M12 8v5"/><path d="M12 16.2v.1"/></symbol>
+  <symbol id="i-turnover" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2.8h6V4"/><path d="M8.5 10h7M8.5 14h7M8.5 18h4"/></symbol>
+  <symbol id="i-analytics" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M6 17v-5M11 17V6M16 17v-8M21 17v-3"/></symbol>
+  <symbol id="i-training" viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3.2 2.4 8.8 2.4 12 0v-5"/><path d="M22 9v5"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></symbol>
+  <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5M11 18l-6-6 6-6"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16"/></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 21c4 0 7-2.8 7-6.8 0-4.2-3.4-6.5-4.5-10.2-2.2 1.7-3 4.2-3 6-1.2-.8-2-2.2-2.2-3.5C7.4 8.6 5 11 5 14.2 5 18.2 8 21 12 21z"/></symbol>
+  <symbol id="i-timer" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2.5h5"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3L2 20h20z"/><path d="M12 10v4.5M12 17.2v.1"/></symbol>
+  <symbol id="i-handoff" viewBox="0 0 24 24"><path d="M4 12h12M12 6l6 6-6 6"/><path d="M20 4v16"/></symbol>
+  <symbol id="i-pivot" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5M11 8v6M8 11h6"/></symbol>
+</svg>
 
-<main>
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="flashes">
-        {% for cat, msg in messages %}<div class="flash flash-{{ cat }}">{{ msg }}</div>{% endfor %}
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <a class="brand" href="{{ url_for('dashboard.home') }}">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2l12 7v14l-12 7-12-7V9z" fill="#65a637"/><path d="M8 17h4l2-5 4 9 2-4h4" stroke="#0b1606" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span><b>CyberTrack</b><small>SOC Console</small></span>
+    </a>
+    {% set ep = request.endpoint or '' %}
+    <nav class="nav" aria-label="Main">
+      <div class="nav-label">Monitor</div>
+      <a href="{{ url_for('dashboard.home') }}" class="{{ 'active' if ep == 'dashboard.home' }}">
+        <svg class="ico"><use href="#i-posture"/></svg>Security Posture</a>
+      <a href="{{ url_for('soc.queue') }}" class="{{ 'active' if ep in ('soc.queue', 'soc.alert_detail') }}">
+        <svg class="ico"><use href="#i-review"/></svg>Incident Review
+        <span class="count {{ 'zero' if not nav_open }}" title="open notables">{{ nav_open }}</span></a>
+      <div class="nav-label">Operations</div>
+      <a href="{{ url_for('soc.turnover') }}" class="{{ 'active' if ep == 'soc.turnover' }}">
+        <svg class="ico"><use href="#i-turnover"/></svg>Shift Turnover</a>
+      <a href="{{ url_for('soc.metrics_view') }}" class="{{ 'active' if ep == 'soc.metrics_view' }}">
+        <svg class="ico"><use href="#i-analytics"/></svg>Analytics</a>
+      <div class="nav-label">Develop</div>
+      <a href="{{ url_for('study.today_tasks') }}" class="{{ 'active' if ep == 'study.today_tasks' }}">
+        <svg class="ico"><use href="#i-target"/></svg>Today's Block</a>
+      <a href="{{ url_for('study.dashboard') }}" class="{{ 'active' if ep == 'study.dashboard' }}">
+        <svg class="ico"><use href="#i-training"/></svg>Training</a>
+    </nav>
+    <div class="side-foot">
+      <div class="avatar" aria-hidden="true">{{ analyst_initials }}</div>
+      <div class="who"><b>{{ analyst_name }}</b><span>Tier 1 analyst &middot; CWE phase {{ nav_cwe_phase }}</span></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn menu-btn" type="button" data-toggle-nav aria-label="Open navigation"><svg class="ico"><use href="#i-menu"/></svg></button>
+      <form class="search" action="{{ url_for('soc.queue') }}" method="get" role="search">
+        <span class="prompt">&gt;</span>
+        <input type="text" name="q" id="global-search" autocomplete="off" spellcheck="false"
+               value="{{ request.args.get('q', '') if request.endpoint == 'soc.queue' else '' }}"
+               placeholder="search index=notable urgency=high source=edr status=new beacon" aria-label="Search notable events">
+        <button type="submit"><svg class="ico sm"><use href="#i-search"/></svg>Search</button>
+      </form>
+      <div class="top-right">
+        <span class="shift-badge" id="shift-badge">DAY SHIFT</span>
+        <span class="clock"><span id="clock">--:--:--Z</span> <span class="clock-date">&middot; {{ today.strftime('%d %b %Y') }}</span></span>
+        <button class="icon-btn help-btn" type="button" data-help aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)"><svg class="ico"><use href="#i-keyboard"/></svg></button>
       </div>
-    {% endif %}
-  {% endwith %}
-  {% block content %}{% endblock %}
-</main>
+    </header>
 
-<footer class="foot">
-  CyberTrack &middot; local practice portal &middot; all data synthetic and offline
-</footer>
+    <main class="content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flashes">
+            {% for cat, msg in messages %}<div class="flash flash-{{ cat }}">{{ msg }}</div>{% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+    <footer class="foot">CyberTrack &middot; local training environment &middot; all events are synthetic and offline</footer>
+  </div>
+</div>
+
+<div class="overlay" id="help" role="dialog" aria-modal="true" aria-labelledby="help-title">
+  <div class="panel">
+    <div class="panel-h"><h3 id="help-title">Keyboard shortcuts</h3><div class="actions"><button class="icon-btn" type="button" data-help aria-label="Close"><svg class="ico sm"><use href="#i-x"/></svg></button></div></div>
+    <div class="panel-b keys">
+      <kbd>/</kbd><span>Focus the search bar</span>
+      <kbd>g</kbd><span>then <kbd>p</kbd> posture, <kbd>r</kbd> incident review, <kbd>t</kbd> turnover, <kbd>a</kbd> analytics, <kbd>s</kbd> training</span>
+      <kbd>j</kbd> <span><kbd>k</kbd> move through the queue, <kbd>Enter</kbd> opens</span>
+      <kbd>e</kbd><span>Escalate the open alert (needs a reason)</span>
+      <kbd>c</kbd><span>Close the open alert as benign (needs a reason)</span>
+      <kbd>n</kbd><span>Next open alert</span>
+      <kbd>?</kbd><span>Toggle this panel</span>
+    </div>
+  </div>
+</div>
+<div class="tip" id="tip" role="tooltip"></div>
+<script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </body>
 </html>

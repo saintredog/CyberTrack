@@ -1,45 +1,89 @@
 {% extends "base.html" %}
-{% block title %}SOC Queue &middot; CyberTrack{% endblock %}
+{% import "macros.html" as ui %}
+{% block title %}Incident Review{% endblock %}
 {% block content %}
-<h1>Alert queue</h1>
-<p class="lede">{{ open_total }} open. Read each alert, decide benign or malicious, and give your reason. You're graded against ground truth.</p>
+{% macro qurl() -%}{{ url_for('soc.queue', **dict(dict(q=q, range=rng, status=status, sort=sort), **kwargs)) }}{%- endmacro %}
+<div class="page-head">
+  <div>
+    <div class="crumb">Monitor / Incident Review</div>
+    <h1>Incident Review</h1>
+    <div class="subtitle">Read the event, check the enrichment, make the call. Every decision is graded against ground truth.</div>
+  </div>
+  <div class="head-actions">
+    <span class="hint-line"><kbd>j</kbd> <kbd>k</kbd> move &middot; <kbd>Enter</kbd> open &middot; <kbd>/</kbd> search</span>
+  </div>
+</div>
 
 {% if prev_turnover and prev_turnover.open_items %}
-<div class="hint">
-  Carried over from {{ prev_turnover.shift_date.strftime('%d %b') }}:
-  {{ prev_turnover.open_items | join('; ') }}
+<div class="carry">
+  {{ ui.icon('handoff') }}
+  <div><b>Carried over from {{ prev_turnover.shift_date.strftime('%a %d %b') }}:</b> {{ prev_turnover.open_items | join(' · ') }}</div>
 </div>
 {% endif %}
 
-<div class="btn-row" style="margin-bottom:12px">
-  <a class="chip {{ 'new' if show == 'open' }}" href="{{ url_for('soc.queue', show='open', sort=sort) }}">Open only</a>
-  <a class="chip {{ 'new' if show == 'all' }}" href="{{ url_for('soc.queue', show='all', sort=sort) }}">All</a>
-  <span class="muted" style="margin-left:auto">sort:</span>
-  <a class="chip {{ 'new' if sort == 'severity' }}" href="{{ url_for('soc.queue', show=show, sort='severity') }}">Severity</a>
-  <a class="chip {{ 'new' if sort == 'time' }}" href="{{ url_for('soc.queue', show=show, sort='time') }}">Time</a>
-</div>
+<div class="ir">
+  <aside class="panel facets">
+    {% call ui.panel_h('Fields') %}{% endcall %}
+    <div class="panel-b">
+      <div class="facet-h">Status</div>
+      <a class="facet {{ 'on' if status == 'any' }}" href="{{ qurl(status='any') }}">All<span class="n">{{ matched }}</span></a>
+      {% for s in ['new', 'escalated', 'closed'] %}
+        <a class="facet {{ 'on' if status == s }}" href="{{ qurl(status=s) }}">{{ ui.status(s) }}<span class="n">{{ facet_status.get(s, 0) }}</span></a>
+      {% endfor %}
+      <div class="facet-h">Urgency</div>
+      {% for u, n in facet_urgency %}
+        <a class="facet" href="{{ qurl(q=(q ~ ' urgency=' ~ u)|trim, status='any') }}">{{ ui.urg(u, false) }}<span class="n">{{ n }}</span></a>
+      {% endfor %}
+      <div class="facet-h">Source</div>
+      {% for s, n in facet_source %}
+        <a class="facet" href="{{ qurl(q=(q ~ ' source=' ~ s)|trim, status='any') }}"><span class="tag src">{{ s }}</span><span class="n">{{ n }}</span></a>
+      {% endfor %}
+    </div>
+  </aside>
 
-{% if alerts %}
-<table>
-  <thead><tr><th>Sev</th><th>Time</th><th>Source</th><th>Alert</th><th>Status</th></tr></thead>
-  <tbody>
-  {% for a in alerts %}
-    <tr class="clickable" onclick="location.href='{{ url_for('soc.alert_detail', alert_id=a.id) }}'">
-      <td><span class="sev sev-{{ a.severity }}">{{ a.severity }}</span></td>
-      <td class="muted">{{ a.created_at|dt('%H:%M') }}</td>
-      <td><span class="chip src">{{ a.source }}</span></td>
-      <td>{{ a.title }}</td>
-      <td>
-        {% if a.status == 'new' %}<span class="chip new">new</span>
-        {% elif a.status == 'escalated' %}<span class="chip escalated">escalated</span>
-        {% else %}<span class="chip closed">closed</span>{% endif %}
-        {% if a.triage %}{% if a.triage.correct %}<span class="chip" style="color:var(--good);border-color:var(--good)">✓</span>{% else %}<span class="chip" style="color:var(--bad);border-color:var(--bad)">✗</span>{% endif %}{% endif %}
-      </td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<div class="empty">Queue clear. Nice. Head to <a href="{{ url_for('soc.turnover') }}">turnover</a> or your <a href="{{ url_for('study.today_tasks') }}">study block</a>.</div>
-{% endif %}
+  <section class="panel" style="min-width:0">
+    <div class="filter-row">
+      <div class="seg" role="group" aria-label="Time range">
+        {% for key, label in ranges.items() %}<a class="{{ 'on' if rng == key }}" href="{{ qurl(range=key) }}">{{ label }}</a>{% endfor %}
+      </div>
+      <div class="seg" role="group" aria-label="Sort">
+        <a class="{{ 'on' if sort != 'time' }}" href="{{ qurl(sort='urgency') }}">Urgency</a>
+        <a class="{{ 'on' if sort == 'time' }}" href="{{ qurl(sort='time') }}">Newest</a>
+      </div>
+      {% if q %}<a class="btn sm ghost" href="{{ url_for('soc.queue', range=rng) }}">{{ ui.icon('x', 'sm') }}Clear search</a>{% endif %}
+      <span class="result-count"><b>{{ alerts|length }}</b> event{{ '' if alerts|length == 1 else 's' }}{% if q %} matching <code style="color:var(--accent-hi)">{{ q }}</code>{% endif %}</span>
+    </div>
+    {% for e in query_errors %}<div class="qerr">{{ ui.icon('alert', 'sm') }} {{ e }}</div>{% endfor %}
+
+    {% if alerts %}
+    <div style="overflow-x:auto">
+    <table class="tbl" id="queue">
+      <thead><tr>
+        <th class="hide-sm">Time</th><th>Urgency</th><th>Title</th><th class="hide-sm">Source</th><th class="hide-sm">ATT&amp;CK</th><th class="hide-sm">Status</th><th class="hide-sm">Owner</th><th>Verdict</th>
+      </tr></thead>
+      <tbody>
+      {% for a in alerts %}
+        <tr class="ev u-{{ a.severity }} {{ 'done' if a.status != 'new' }}" data-href="{{ url_for('soc.alert_detail', alert_id=a.id) }}" tabindex="-1">
+          <td class="time hide-sm">{{ a.created_at|dt('%H:%M:%S') }}<small>{{ a.shift_date.strftime('%a %d %b') }}</small></td>
+          <td>{{ ui.urg(a.severity) }}</td>
+          <td><a class="title" href="{{ url_for('soc.alert_detail', alert_id=a.id) }}">{{ a.title }}</a>
+              <div class="hint-line" style="margin:2px 0 0">{{ labels.get(a.scenario, a.scenario) }} &middot; #{{ '%05d'|format(a.id) }}<span class="show-sm"> &middot; {{ a.created_at|dt('%H:%M') }} {{ a.shift_date.strftime('%d %b') }}</span></div></td>
+          <td class="hide-sm"><span class="tag src">{{ a.source }}</span></td>
+          <td class="hide-sm"><span class="tag attack">{{ a.technique }}</span></td>
+          <td class="hide-sm">{{ ui.status(a.status) }}</td>
+          <td class="owner hide-sm">{{ analyst_name if a.triage else 'unassigned' }}</td>
+          <td>{% if a.triage %}{% if a.triage.correct %}<span class="verdict-mark ok">{{ ui.icon('check', 'sm') }}Correct</span>{% else %}<span class="verdict-mark no">{{ ui.icon('x', 'sm') }}Missed</span>{% endif %}{% else %}<span class="owner">pending</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+      <div class="empty">
+        {% if status == 'new' and not q %}<b>Queue clear</b>No open notables. Head to <a href="{{ url_for('soc.turnover') }}">turnover</a> or your <a href="{{ url_for('study.today_tasks') }}">study block</a>.
+        {% else %}<b>No matching events</b>Try widening the time range or clearing the search.{% endif %}
+      </div>
+    {% endif %}
+  </section>
+</div>
 {% endblock %}

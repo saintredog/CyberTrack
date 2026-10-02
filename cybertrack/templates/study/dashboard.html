@@ -1,62 +1,113 @@
 {% extends "base.html" %}
-{% block title %}Study &middot; CyberTrack{% endblock %}
+{% import "macros.html" as ui %}
+{% block title %}Training{% endblock %}
 {% block content %}
-<h1>Study tracker</h1>
-<p class="lede">Every track in one place. Green means you've studied it, amber means it's due for review, grey is new. CWE items above your current phase stay locked.</p>
-
-<form class="settings" method="post" action="{{ url_for('study.settings') }}">
-  <div class="f">
-    <label for="cwe_phase">CWE phase</label>
-    <select id="cwe_phase" name="cwe_phase">
-      {% for p in [1,2,3,4] %}<option value="{{ p }}" {{ 'selected' if p == cwe_phase }}>Phase {{ p }}</option>{% endfor %}
-    </select>
+<div class="page-head">
+  <div>
+    <div class="crumb">Develop / Training</div>
+    <h1>Training tracker</h1>
+    <div class="subtitle">CySA+, pen testing, WGU and the CWE path in one place, scheduled by spaced repetition.</div>
   </div>
-  <div class="f">
-    <label for="daily_minutes">Daily minutes</label>
-    <input type="text" id="daily_minutes" name="daily_minutes" value="{{ daily_minutes }}" style="width:90px">
+  <div class="head-actions">
+    <a class="btn primary" href="{{ url_for('study.today_tasks') }}">{{ ui.icon('target', 'sm') }}Today's block</a>
   </div>
-  <button class="primary" type="submit">Save</button>
-  <a class="cta ghost" href="{{ url_for('study.today_tasks') }}">Today's tasks</a>
-</form>
+</div>
 
-<div class="hint">{{ cwe_hint }}</div>
+<div class="row c4">
+  {% for key, t in tracks %}
+    <div class="panel ring-card">
+      {{ ui.ring(t.ring, t.color, t.label) }}
+      <div style="min-width:0">
+        <div class="rt">{{ t.label }}</div>
+        <div class="rs">{{ t.done }}/{{ t.total }} topics studied</div>
+        <div class="rs">{% if t.due %}<span class="tone-warn">{{ t.due }} due</span>{% else %}nothing due{% endif %}{% if t.locked %} &middot; {{ t.locked }} locked{% endif %}</div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
 
-{% for key, t in tracks %}
-<details class="track" {{ 'open' if key in ['cwe','cysa'] }}>
-  <summary>
-    <span class="tname">{{ t.label }}</span>
-    <span class="bar"><span style="width:{{ (t.done / t.total * 100)|round|int if t.total else 0 }}%"></span></span>
-    <span class="count">{{ t.done }}/{{ t.total }}</span>
-  </summary>
-  <div class="body">
-    {% for section, rows in t.sections.items() %}
-      <div class="sec-title">{{ section }}</div>
-      {% for r in rows %}
-        <div class="topic-row">
-          <span class="dot {{ 'done' if r.done else 'due' if r.due else 'locked' if r.locked }}"></span>
-          <span class="t">
-            {{ r.item.topic }}
-            {% if r.item.hands_on %}<span class="badge hands">lab</span>{% endif %}
-            {% if r.today %}<span class="badge today">today</span>{% endif %}
-            {% if r.locked %}<span class="muted">(locked &mdash; phase {{ r.item.phase }})</span>{% endif %}
-          </span>
-          <span class="mins">{{ r.item.minutes }}m</span>
-          {% if not r.locked %}
-          <form class="inline" method="post" action="{{ url_for('study.log_item', item_id=r.item.id) }}">
-            <input type="hidden" name="next" value="{{ url_for('study.dashboard') }}">
-            <input type="hidden" name="action" value="studied">
-            <div class="rate">
-              {% for c in [1,2,3,4,5] %}
-                <button name="confidence" value="{{ c }}" title="confidence {{ c }}/5" type="submit">{{ c }}</button>
-              {% endfor %}
-            </div>
-          </form>
-          {% endif %}
+<div class="row c21">
+  <div class="panel">
+    {% call ui.panel_h('Study activity', 'last 26 weeks · ' ~ sessions_week ~ ' session' ~ ('' if sessions_week == 1 else 's') ~ ' this week') %}{% endcall %}
+    <div class="panel-b">{{ ui.heatmap(heat) }}</div>
+  </div>
+  <div class="panel">
+    {% call ui.panel_h('Settings') %}{% endcall %}
+    <form class="panel-b settings-form" method="post" action="{{ url_for('study.settings') }}">
+      <div>
+        <label class="f" for="cwe_phase" style="margin-top:0">CWE phase</label>
+        <select id="cwe_phase" name="cwe_phase">
+          {% for p, n in [(1, 'C fundamentals'), (2, 'Execution & asm'), (3, 'RE tooling'), (4, 'Exploit dev')] %}<option value="{{ p }}" {{ 'selected' if p == cwe_phase }}>{{ p }} &middot; {{ n }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="f" for="daily_minutes" style="margin-top:0">Daily minutes</label>
+        <input type="number" min="10" max="240" id="daily_minutes" name="daily_minutes" value="{{ daily_minutes }}">
+      </div>
+      <div class="full">
+        <label class="f" for="analyst_name">Analyst name</label>
+        <input type="text" id="analyst_name" name="analyst_name" value="{{ analyst }}" maxlength="40">
+      </div>
+      <div class="full" style="margin-top:12px"><button class="btn primary" type="submit">Save settings</button></div>
+      <div class="full hint-line">Phases above your current one stay locked so you're never handed exploit dev before C.</div>
+    </form>
+  </div>
+</div>
+
+<div class="row c12 top">
+  <div class="panel">
+    {% call ui.panel_h('Due for review', due|length ~ ' item' ~ ('' if due|length == 1 else 's'), 'book') %}{% endcall %}
+    {% if due %}
+      <div class="list">
+        {% for i in due %}
+          <div class="li">
+            <span class="state due"></span>
+            <span class="grow"><div class="t">{{ i.topic }}</div><div class="s">{{ i.track|upper }} &middot; due {{ i.review.due_date.strftime('%d %b') }} &middot; last {{ i.review.last_confidence }}/5</div></span>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty"><b>All caught up</b>Nothing is due for review.</div>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    {% call ui.panel_h('Tracks', 'rate 1-5 after studying a topic') %}{% endcall %}
+    <div class="hint-line" style="margin:0;padding:10px 16px;border-bottom:1px solid var(--line)">{{ ui.icon('code', 'sm') }} {{ cwe_hint }}</div>
+    {% for key, t in tracks %}
+      <details class="trk" {{ 'open' if key == 'cwe' }}>
+        <summary>
+          {{ ui.icon('chev', 'sm chev') }}
+          <span class="swatch" style="background:{{ t.color }}"></span>
+          <b style="min-width:90px">{{ t.label }}</b>
+          <span class="bar"><i style="width:{{ t.ring.pct }}%;background:{{ t.color }}"></i></span>
+          <span class="hint-line" style="margin:0 0 0 auto">{{ t.done }}/{{ t.total }}</span>
+        </summary>
+        <div class="sec">
+          {% for section, rows in t.sections.items() %}
+            <div class="sec-t">{{ section }}</div>
+            {% for r in rows %}
+              <div class="topic {{ 'locked' if r.locked }}">
+                <span class="state {{ 'done' if r.done else 'due' if r.due else 'locked' if r.locked }}" title="{{ 'studied' if r.done else 'due' if r.due else 'locked' if r.locked else 'new' }}"></span>
+                <span class="grow">{{ r.item.topic }}
+                  {% if r.item.hands_on %}<span class="pill lab">LAB</span>{% endif %}
+                  {% if r.today %}<span class="pill today">TODAY</span>{% endif %}
+                  {% if r.locked %}<span class="hint-line" style="margin:0">locked until phase {{ r.item.phase }}</span>{% endif %}
+                </span>
+                <span class="hint-line" style="margin:0">{{ r.item.minutes }}m</span>
+                {% if not r.locked %}
+                <form method="post" action="{{ url_for('study.log_item', item_id=r.item.id) }}" class="mini-rate">
+                  <input type="hidden" name="next" value="{{ url_for('study.dashboard') }}">
+                  <input type="hidden" name="action" value="studied">
+                  {% for c in [1, 2, 3, 4, 5] %}<button name="confidence" value="{{ c }}" type="submit" title="Confidence {{ c }}/5">{{ c }}</button>{% endfor %}
+                </form>
+                {% endif %}
+              </div>
+            {% endfor %}
+          {% endfor %}
         </div>
-      {% endfor %}
+      </details>
     {% endfor %}
   </div>
-</details>
-{% endfor %}
-<p class="muted" style="margin-top:14px">Rate 1-5 after studying a topic. Higher confidence pushes the next review further out; low confidence brings it back tomorrow.</p>
+</div>
 {% endblock %}

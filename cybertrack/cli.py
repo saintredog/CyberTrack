@@ -62,16 +62,22 @@ def demo(days: int):
         alerts = list(session.scalars(select(Alert).where(Alert.id.in_(plan.alert_ids))))
         from datetime import datetime
 
-        for a in alerts:
+        # Progress curve: accuracy climbs and time-to-triage drops across the demo window.
+        progress = 1 - (offset - 1) / max(1, days - 1)
+        p_correct = 0.55 + 0.35 * progress
+        shift_start = datetime(day.year, day.month, day.day, 7, 30)
+        for n, a in enumerate(alerts):
             if a.triage is not None:
                 continue
-            # 80% correct, so metrics look like a learner improving.
-            correct = rng.random() < 0.8
+            correct = rng.random() < p_correct
             disp = a.true_disposition if correct else ("benign" if a.true_disposition == "malicious" else "malicious")
-            grade(session, a, disp, "demo triage decision", "", datetime.now(), day)
+            viewed = shift_start + timedelta(minutes=12 * n + rng.randint(0, 5))
+            a.first_viewed_at = viewed
+            think = timedelta(minutes=rng.uniform(2, 4) + 8 * (1 - progress))
+            grade(session, a, disp, "demo triage decision", "", viewed + think, day)
         # Log a couple of study items per day.
         items = list(session.scalars(select(CurriculumItem).where(CurriculumItem.id.in_(plan.study_item_ids))))
-        for item in items[:2]:
+        for item in items[: rng.randint(0, 3)]:
             rev = item.review or ReviewState(item_id=item.id)
             if item.review is None:
                 session.add(rev)

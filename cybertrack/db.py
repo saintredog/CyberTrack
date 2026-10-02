@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date
 
 from flask import current_app, g, has_app_context
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from .models import Base, Setting
@@ -14,12 +14,33 @@ DEFAULTS = {
     "daily_minutes": "40",     # total daily budget, alerts + study
     "alerts_per_day": "5",     # new alerts generated per shift
     "minutes_per_alert": "3",  # time estimate used to size the study block
+    "analyst_name": "Analyst", # shown in the top bar and as alert owner
 }
+
+
+def _add_missing_columns(engine) -> None:
+    """Tiny additive migration: add new nullable columns to existing tables.
+
+    create_all() makes missing tables but never alters existing ones, so a
+    database created by an older version would lack newer columns.
+    """
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            if not insp.has_table(table.name):
+                continue
+            have = {c["name"] for c in insp.get_columns(table.name)}
+            for col in table.columns:
+                if col.name in have or not col.nullable:
+                    continue
+                ddl_type = col.type.compile(dialect=engine.dialect)
+                conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {ddl_type}'))
 
 
 def init_app(app) -> None:
     engine = create_engine(app.config["DATABASE_URL"])
     Base.metadata.create_all(engine)
+    _add_missing_columns(engine)
     app.extensions["cybertrack.engine"] = engine
     app.extensions["cybertrack.sessionmaker"] = sessionmaker(bind=engine, expire_on_commit=False)
     app.teardown_appcontext(close_session)

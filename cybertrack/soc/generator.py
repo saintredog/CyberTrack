@@ -131,9 +131,12 @@ def metrics(session: Session) -> dict:
         bucket[1] += 1
         bucket[0] += int(t.correct)
 
+    from ..analytics import _mttt_minutes
+
     return {
         "total": total,
         "tp": tp, "tn": tn, "fp": fp, "fn": fn,
+        "mttt": _mttt_minutes(rows),
         "accuracy": (tp + tn) / total if total else None,
         "per_rule": {k: {"correct": v[0], "total": v[1]} for k, v in sorted(per_rule.items())},
         "by_day": [
