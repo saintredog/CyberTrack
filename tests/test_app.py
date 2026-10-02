@@ -116,3 +116,13 @@ def test_every_page_renders_and_alert_view_sets_first_viewed(client, app):
     assert r.status_code == 200 and b"Interesting fields" in r.data
     with app.app_context():
         assert get_session().get(Alert, aid).first_viewed_at is not None
+
+
+def test_next_param_only_follows_same_site_paths(client, app):
+    with app.app_context():
+        item_id = get_session().scalar(select(CurriculumItem.id).where(CurriculumItem.track == "cysa"))
+    for bad in ["https://evil.example/", "//evil.example/x", "/\\evil.example", "javascript:alert(1)"]:
+        r = client.post("/study/settings", data={"cwe_phase": "1", "next": bad})
+        assert r.status_code == 302 and r.headers["Location"].endswith("/study/"), (bad, r.headers["Location"])
+    r = client.post(f"/study/item/{item_id}/log", data={"confidence": "4", "next": "/study/today"})
+    assert r.headers["Location"].endswith("/study/today")

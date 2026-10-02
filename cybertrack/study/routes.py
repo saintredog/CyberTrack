@@ -26,6 +26,18 @@ def _items(session):
     return list(session.scalars(select(CurriculumItem).order_by(CurriculumItem.position)))
 
 
+def _safe_next(default: str) -> str:
+    """Only follow a same-site path from the form's "next" field, never an outside URL.
+
+    Rejects absolute URLs, scheme-relative "//host" and backslash tricks that some
+    browsers normalize into "//host".
+    """
+    target = (request.form.get("next") or "").strip()
+    if target.startswith("/") and not target.startswith("//") and "\\" not in target and ":" not in target.split("?")[0]:
+        return target
+    return default
+
+
 @bp.route("/")
 def dashboard():
     session = get_session()
@@ -139,7 +151,7 @@ def log_item(item_id: int):
     )
     session.commit()
     flash(f"Logged: {item.topic}. Next review in {rev.interval_days} day(s).", "ok")
-    return redirect(request.form.get("next") or url_for("study.dashboard"))
+    return redirect(_safe_next(url_for("study.dashboard")))
 
 
 @bp.post("/settings")
@@ -159,4 +171,4 @@ def settings():
         set_setting(session, "difficulty", difficulty)
     session.commit()
     flash("Settings updated. Tomorrow's plan uses the new values.", "ok")
-    return redirect(request.form.get("next") or url_for("study.dashboard"))
+    return redirect(_safe_next(url_for("study.dashboard")))
