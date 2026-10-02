@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Metrics &middot; CyberTrack{% endblock %}
+{% block content %}
+<h1>Triage metrics</h1>
+<p class="lede">How your calls stack up against ground truth. Watch the false-negative count: those are missed threats.</p>
+
+{% if m.total %}
+<div class="grid">
+  <div class="card"><h3>Overall accuracy</h3>
+    <div class="stat {{ 'good' if m.accuracy >= 0.8 else 'warn' if m.accuracy >= 0.6 else 'bad' }}">{{ (m.accuracy * 100)|round|int }}%</div>
+    <div class="sub">{{ m.total }} alerts triaged</div>
+  </div>
+  <div class="card"><h3>True positive</h3><div class="stat good">{{ m.tp }}</div><div class="sub">threats caught</div></div>
+  <div class="card"><h3>False negative</h3><div class="stat {{ 'bad' if m.fn else 'good' }}">{{ m.fn }}</div><div class="sub">threats missed</div></div>
+  <div class="card"><h3>False positive</h3><div class="stat {{ 'warn' if m.fp else 'good' }}">{{ m.fp }}</div><div class="sub">benign escalated</div></div>
+</div>
+
+<h2>Confusion matrix</h2>
+<table style="max-width:460px">
+  <thead><tr><th></th><th>You said malicious</th><th>You said benign</th></tr></thead>
+  <tbody>
+    <tr><th>Actually malicious</th><td style="color:var(--good)">{{ m.tp }} (TP)</td><td style="color:var(--bad)">{{ m.fn }} (FN)</td></tr>
+    <tr><th>Actually benign</th><td style="color:var(--warn)">{{ m.fp }} (FP)</td><td style="color:var(--good)">{{ m.tn }} (TN)</td></tr>
+  </tbody>
+</table>
+
+<h2>Accuracy by detection</h2>
+<table>
+  <thead><tr><th>Scenario</th><th>Correct</th><th>Rate</th></tr></thead>
+  <tbody>
+  {% for name, s in m.per_rule.items() %}
+    <tr>
+      <td>{{ name.replace('_', ' ') }}</td>
+      <td>{{ s.correct }}/{{ s.total }}</td>
+      <td>
+        <div class="bar" style="max-width:160px;display:inline-block;vertical-align:middle">
+          <span style="width:{{ (s.correct / s.total * 100)|round|int }}%"></span>
+        </div>
+        {{ (s.correct / s.total * 100)|round|int }}%
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Recent days</h2>
+<table style="max-width:460px">
+  <thead><tr><th>Day</th><th>Correct</th></tr></thead>
+  <tbody>
+  {% for d in m.by_day %}
+    <tr><td class="muted">{{ d.day.strftime('%a %d %b') }}</td><td>{{ d.correct }}/{{ d.total }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">No triage history yet. Work the <a href="{{ url_for('soc.queue') }}">queue</a> and your accuracy shows up here.</div>
+{% endif %}
+{% endblock %}

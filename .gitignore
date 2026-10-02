@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# CyberTrack local data (regenerate with `flask seed` / `flask demo`)
+data/*.db
+data/*.db-journal
+instance/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store

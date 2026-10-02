@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}CyberTrack{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="{{ url_for('dashboard.home') }}">CYBER<span>TRACK</span></a>
+  <nav>
+    <a href="{{ url_for('dashboard.home') }}" class="{{ 'active' if request.endpoint == 'dashboard.home' }}">Dashboard</a>
+    <a href="{{ url_for('soc.queue') }}" class="{{ 'active' if request.blueprint == 'soc' }}">SOC Queue</a>
+    <a href="{{ url_for('study.dashboard') }}" class="{{ 'active' if request.blueprint == 'study' }}">Study</a>
+    <a href="{{ url_for('soc.turnover') }}">Turnover</a>
+    <a href="{{ url_for('soc.metrics_view') }}">Metrics</a>
+  </nav>
+  <span class="clock">{{ today.strftime('%a %d %b %Y') }}</span>
+</header>
+
+<main>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flashes">
+        {% for cat, msg in messages %}<div class="flash flash-{{ cat }}">{{ msg }}</div>{% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="foot">
+  CyberTrack &middot; local practice portal &middot; all data synthetic and offline
+</footer>
+</body>
+</html>

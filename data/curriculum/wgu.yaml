@@ -1,0 +1,44 @@
+# WGU B.S. Cybersecurity and Information Assurance coursework.
+# TODO (Cliff): this is the standard course list. Set active: false on the
+# courses you have already passed, or delete them, so only remaining work gets
+# scheduled. Add the course codes you have left if these titles don't match.
+track: wgu
+sections:
+  - section: "Certifications embedded in the degree"
+    items:
+      - topic: "CompTIA Security+ (SY0-701)"
+        minutes: 30
+      - topic: "CompTIA Network+"
+        minutes: 30
+      - topic: "CompTIA A+ (core knowledge)"
+        minutes: 20
+      - topic: "CompTIA PenTest+ (PT0-003)"
+        minutes: 30
+      - topic: "CompTIA CySA+ (CS0-003)"
+        minutes: 30
+      - topic: "ITIL Foundation"
+        minutes: 15
+  - section: "Core courses"
+    items:
+      - topic: "Network and Security Foundations"
+        minutes: 25
+      - topic: "Introduction to Cryptography"
+        minutes: 30
+      - topic: "Scripting and Programming Foundations (Python)"
+        minutes: 25
+      - topic: "Data Management / Databases"
+        minutes: 20
+      - topic: "Cyber Defense and Countermeasures"
+        minutes: 30
+      - topic: "Managing Cloud Security"
+        minutes: 25
+      - topic: "Secure Network Design"
+        minutes: 25
+      - topic: "Digital Forensics in Cybersecurity"
+        minutes: 30
+  - section: "Capstone"
+    items:
+      - topic: "Cybersecurity Architecture and Engineering"
+        minutes: 30
+      - topic: "Cybersecurity Graduation / Capstone project"
+        minutes: 30

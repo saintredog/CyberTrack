@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Turnover &middot; CyberTrack{% endblock %}
+{% block content %}
+<h1>Shift turnover</h1>
+<p class="lede">End-of-shift handoff. Summarize the shift and list what the next analyst (you, tomorrow) should pick up.</p>
+
+{% if prev_turnover %}
+<div class="hint">
+  Last turnover ({{ prev_turnover.shift_date.strftime('%d %b') }}): {{ prev_turnover.summary }}
+  {% if prev_turnover.open_items %}<br>Open: {{ prev_turnover.open_items | join('; ') }}{% endif %}
+</div>
+{% endif %}
+
+{% if escalated %}
+<div class="card" style="margin-bottom:16px">
+  <h3>Escalated today &mdash; likely open items</h3>
+  <ul class="tight">
+    {% for a in escalated %}<li>{{ a.title }} ({{ a.source }}, {{ a.created_at|dt('%H:%M') }})</li>{% endfor %}
+  </ul>
+  <div class="sub">Copy the ones still needing follow-up into the open-items box below.</div>
+</div>
+{% endif %}
+
+<form method="post">
+  <label for="summary">Shift summary (required)</label>
+  <textarea id="summary" name="summary" required placeholder="How many alerts worked, what was escalated, anything notable">{{ existing.summary if existing }}</textarea>
+  <label for="open_items">Open items, one per line</label>
+  <textarea id="open_items" name="open_items" placeholder="Follow up on isolated host WS-0142&#10;Confirm vendor_maint account expired">{{ existing.open_items | join('\n') if existing }}</textarea>
+  <div class="btn-row">
+    <button class="primary" type="submit">{{ 'Update turnover' if existing else 'Save turnover' }}</button>
+    <a class="cta ghost" href="{{ url_for('dashboard.home') }}">Done for today</a>
+  </div>
+</form>
+{% endblock %}

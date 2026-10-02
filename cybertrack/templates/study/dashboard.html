@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Study &middot; CyberTrack{% endblock %}
+{% block content %}
+<h1>Study tracker</h1>
+<p class="lede">Every track in one place. Green means you've studied it, amber means it's due for review, grey is new. CWE items above your current phase stay locked.</p>
+
+<form class="settings" method="post" action="{{ url_for('study.settings') }}">
+  <div class="f">
+    <label for="cwe_phase">CWE phase</label>
+    <select id="cwe_phase" name="cwe_phase">
+      {% for p in [1,2,3,4] %}<option value="{{ p }}" {{ 'selected' if p == cwe_phase }}>Phase {{ p }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="f">
+    <label for="daily_minutes">Daily minutes</label>
+    <input type="text" id="daily_minutes" name="daily_minutes" value="{{ daily_minutes }}" style="width:90px">
+  </div>
+  <button class="primary" type="submit">Save</button>
+  <a class="cta ghost" href="{{ url_for('study.today_tasks') }}">Today's tasks</a>
+</form>
+
+<div class="hint">{{ cwe_hint }}</div>
+
+{% for key, t in tracks %}
+<details class="track" {{ 'open' if key in ['cwe','cysa'] }}>
+  <summary>
+    <span class="tname">{{ t.label }}</span>
+    <span class="bar"><span style="width:{{ (t.done / t.total * 100)|round|int if t.total else 0 }}%"></span></span>
+    <span class="count">{{ t.done }}/{{ t.total }}</span>
+  </summary>
+  <div class="body">
+    {% for section, rows in t.sections.items() %}
+      <div class="sec-title">{{ section }}</div>
+      {% for r in rows %}
+        <div class="topic-row">
+          <span class="dot {{ 'done' if r.done else 'due' if r.due else 'locked' if r.locked }}"></span>
+          <span class="t">
+            {{ r.item.topic }}
+            {% if r.item.hands_on %}<span class="badge hands">lab</span>{% endif %}
+            {% if r.today %}<span class="badge today">today</span>{% endif %}
+            {% if r.locked %}<span class="muted">(locked &mdash; phase {{ r.item.phase }})</span>{% endif %}
+          </span>
+          <span class="mins">{{ r.item.minutes }}m</span>
+          {% if not r.locked %}
+          <form class="inline" method="post" action="{{ url_for('study.log_item', item_id=r.item.id) }}">
+            <input type="hidden" name="next" value="{{ url_for('study.dashboard') }}">
+            <input type="hidden" name="action" value="studied">
+            <div class="rate">
+              {% for c in [1,2,3,4,5] %}
+                <button name="confidence" value="{{ c }}" title="confidence {{ c }}/5" type="submit">{{ c }}</button>
+              {% endfor %}
+            </div>
+          </form>
+          {% endif %}
+        </div>
+      {% endfor %}
+    {% endfor %}
+  </div>
+</details>
+{% endfor %}
+<p class="muted" style="margin-top:14px">Rate 1-5 after studying a topic. Higher confidence pushes the next review further out; low confidence brings it back tomorrow.</p>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Dashboard &middot; CyberTrack{% endblock %}
+{% block content %}
+<h1>Start of shift</h1>
+<p class="lede">{{ day.strftime('%A, %d %B %Y') }} &middot; CWE phase {{ cwe_phase }}. Work the queue, do your study block, write turnover.</p>
+
+<div class="grid">
+  <div class="card">
+    <h3>Alerts waiting</h3>
+    <div class="stat {{ 'warn' if open_alerts else 'good' }}">{{ open_alerts|length }}</div>
+    <div class="sub">{{ alerts_total }} in today's shift</div>
+    <a class="cta" href="{{ url_for('soc.queue') }}">Open queue</a>
+  </div>
+
+  <div class="card">
+    <h3>Study today</h3>
+    <div class="stat {{ 'warn' if study_remaining else 'good' }}">{{ study_remaining|length }}</div>
+    <div class="sub">{{ study_today|length }} scheduled, sized to your daily budget</div>
+    <a class="cta" href="{{ url_for('study.today_tasks') }}">Today's tasks</a>
+  </div>
+
+  <div class="card">
+    <h3>Triage accuracy</h3>
+    {% if accuracy is not none %}
+      <div class="stat {{ 'good' if accuracy >= 0.8 else 'warn' if accuracy >= 0.6 else 'bad' }}">{{ (accuracy * 100)|round|int }}%</div>
+      <div class="sub">{{ triaged_total }} triaged{% if fn %} &middot; <span style="color:var(--bad)">{{ fn }} missed threat{{ 's' if fn != 1 }}</span>{% endif %}</div>
+    {% else %}
+      <div class="stat">--</div>
+      <div class="sub">Triage an alert to start tracking</div>
+    {% endif %}
+    <a class="cta ghost" href="{{ url_for('soc.metrics_view') }}">Metrics</a>
+  </div>
+
+  <div class="card">
+    <h3>Streak</h3>
+    <div class="stat {{ 'good' if streak else '' }}">{{ streak }}</div>
+    <div class="sub">day{{ 's' if streak != 1 }} in a row with activity</div>
+  </div>
+</div>
+
+<h2>Turnover from last shift</h2>
+{% if prev_turnover %}
+  <div class="card">
+    <div class="sub">{{ prev_turnover.shift_date.strftime('%A %d %b') }}</div>
+    <p style="margin:8px 0">{{ prev_turnover.summary }}</p>
+    {% if prev_turnover.open_items %}
+      <strong class="muted">Open items carried over:</strong>
+      <ul class="tight">{% for it in prev_turnover.open_items %}<li>{{ it }}</li>{% endfor %}</ul>
+    {% else %}
+      <div class="sub">No open items were carried over.</div>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="empty">No prior turnover yet. After you work today's queue, write your first one.</div>
+{% endif %}
+
+{% if study_remaining %}
+<h2>Next study task</h2>
+<div class="task">
+  <div class="head"><strong>{{ study_remaining[0].topic }}</strong><span class="muted">{{ study_remaining[0].minutes }} min</span></div>
+  <div class="sub">{{ study_remaining[0].section }}</div>
+  <a class="cta" href="{{ url_for('study.today_tasks') }}">Go to study</a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}SOC Queue &middot; CyberTrack{% endblock %}
+{% block content %}
+<h1>Alert queue</h1>
+<p class="lede">{{ open_total }} open. Read each alert, decide benign or malicious, and give your reason. You're graded against ground truth.</p>
+
+{% if prev_turnover and prev_turnover.open_items %}
+<div class="hint">
+  Carried over from {{ prev_turnover.shift_date.strftime('%d %b') }}:
+  {{ prev_turnover.open_items | join('; ') }}
+</div>
+{% endif %}
+
+<div class="btn-row" style="margin-bottom:12px">
+  <a class="chip {{ 'new' if show == 'open' }}" href="{{ url_for('soc.queue', show='open', sort=sort) }}">Open only</a>
+  <a class="chip {{ 'new' if show == 'all' }}" href="{{ url_for('soc.queue', show='all', sort=sort) }}">All</a>
+  <span class="muted" style="margin-left:auto">sort:</span>
+  <a class="chip {{ 'new' if sort == 'severity' }}" href="{{ url_for('soc.queue', show=show, sort='severity') }}">Severity</a>
+  <a class="chip {{ 'new' if sort == 'time' }}" href="{{ url_for('soc.queue', show=show, sort='time') }}">Time</a>
+</div>
+
+{% if alerts %}
+<table>
+  <thead><tr><th>Sev</th><th>Time</th><th>Source</th><th>Alert</th><th>Status</th></tr></thead>
+  <tbody>
+  {% for a in alerts %}
+    <tr class="clickable" onclick="location.href='{{ url_for('soc.alert_detail', alert_id=a.id) }}'">
+      <td><span class="sev sev-{{ a.severity }}">{{ a.severity }}</span></td>
+      <td class="muted">{{ a.created_at|dt('%H:%M') }}</td>
+      <td><span class="chip src">{{ a.source }}</span></td>
+      <td>{{ a.title }}</td>
+      <td>
+        {% if a.status == 'new' %}<span class="chip new">new</span>
+        {% elif a.status == 'escalated' %}<span class="chip escalated">escalated</span>
+        {% else %}<span class="chip closed">closed</span>{% endif %}
+        {% if a.triage %}{% if a.triage.correct %}<span class="chip" style="color:var(--good);border-color:var(--good)">✓</span>{% else %}<span class="chip" style="color:var(--bad);border-color:var(--bad)">✗</span>{% endif %}{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">Queue clear. Nice. Head to <a href="{{ url_for('soc.turnover') }}">turnover</a> or your <a href="{{ url_for('study.today_tasks') }}">study block</a>.</div>
+{% endif %}
+{% endblock %}

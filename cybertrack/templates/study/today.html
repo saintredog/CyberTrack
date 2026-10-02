@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Today's study &middot; CyberTrack{% endblock %}
+{% block content %}
+<h1>Today's study block</h1>
+<p class="lede">Sized to your daily budget and weighted toward what's due and your current CWE phase. Study the topic, then rate how solid you feel.</p>
+
+{% if picks %}
+  {% for item in picks %}
+  <div class="task">
+    <div class="head">
+      <strong>{{ item.topic }}</strong>
+      <span class="muted">{{ item.minutes }} min</span>
+    </div>
+    <div class="sub">{{ item.section }}
+      {% if item.hands_on %}<span class="badge hands">hands-on lab</span>{% endif %}
+      {% if item.track == 'cwe' %}<span class="badge">CWE phase {{ item.phase }}</span>{% endif %}
+    </div>
+    {% if item.track == 'cwe' %}<div class="hint" style="margin:10px 0">{{ cwe_hint }}</div>{% endif %}
+    <form class="inline" method="post" action="{{ url_for('study.log_item', item_id=item.id) }}">
+      <input type="hidden" name="next" value="{{ url_for('study.today_tasks') }}">
+      <label>How solid do you feel? (updates your review schedule)</label>
+      <div class="btn-row" style="align-items:center">
+        <select name="action" style="width:auto">
+          <option value="studied">Studied</option>
+          <option value="quizzed">Quizzed</option>
+          <option value="built">Built/practiced</option>
+        </select>
+        <input type="text" name="minutes" value="{{ item.minutes }}" style="width:70px" title="minutes">
+        <div class="rate">
+          {% for c in [1,2,3,4,5] %}<button name="confidence" value="{{ c }}" type="submit" title="{{ c }}/5">{{ c }}</button>{% endfor %}
+        </div>
+      </div>
+    </form>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="empty">Nothing scheduled. Check your <a href="{{ url_for('study.dashboard') }}">tracker</a> or raise your daily minutes.</div>
+{% endif %}
+<p class="muted">1 = shaky (comes back tomorrow) &middot; 5 = solid (pushed out furthest).</p>
+{% endblock %}

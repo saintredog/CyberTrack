@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ alert.title }} &middot; CyberTrack{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('soc.queue') }}">&larr; Back to queue</a></p>
+<h1><span class="sev sev-{{ alert.severity }}">{{ alert.severity }}</span> {{ alert.title }}</h1>
+<p class="lede">
+  <span class="chip src">{{ alert.source }}</span>
+  &middot; {{ alert.created_at|dt }} &middot; ATT&amp;CK {{ alert.technique }}
+</p>
+
+<h2>Raw log</h2>
+<pre class="log">{{ alert.raw_log }}</pre>
+
+{% if alert.enrichment %}
+<h2>Enrichment</h2>
+<dl class="enrich">
+  {% for k, v in alert.enrichment.items() %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}
+</dl>
+{% endif %}
+
+{% if alert.triage %}
+  {% set correct = alert.triage.correct %}
+  <div class="verdict {{ 'correct' if correct else 'wrong' }}">
+    <h3><span class="tag">{{ 'Correct' if correct else 'Missed' }}</span></h3>
+    <p>
+      You called it <strong>{{ alert.triage.user_disposition }}</strong>.
+      Ground truth: <strong>{{ alert.true_disposition }}</strong>.
+      {% if not correct and alert.true_disposition == 'malicious' %}
+        That's a false negative: a real threat closed out. In a live SOC this is the costly kind of miss.
+      {% elif not correct %}
+        That's a false positive: benign activity escalated. Noisy, but safer than the reverse.
+      {% endif %}
+    </p>
+    <p class="muted">Your reason: {{ alert.triage.reason }}</p>
+    {% if alert.triage.notes %}<p class="muted">Your notes: {{ alert.triage.notes }}</p>{% endif %}
+
+    <strong>What gave it away</strong>
+    <ul class="tight">{% for ind in alert.indicators %}<li>{{ ind }}</li>{% endfor %}</ul>
+
+    <strong>Analysis</strong>
+    <p>{{ alert.explanation }}</p>
+
+    {% if alert.response %}
+    <strong>Response actions</strong>
+    <ul class="tight">{% for r in alert.response %}<li>{{ r }}</li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+  <a class="cta" href="{{ url_for('soc.queue') }}">Next alert</a>
+{% else %}
+  <h2>Your call</h2>
+  <form class="triage" method="post" action="{{ url_for('soc.triage', alert_id=alert.id) }}">
+    <label for="reason">Reason (required) &mdash; what in the log or enrichment decided it?</label>
+    <input type="text" id="reason" name="reason" required placeholder="e.g. signed vendor process, allowlisted domain, fleet-wide prevalence">
+    <label for="notes">Analyst notes (optional)</label>
+    <textarea id="notes" name="notes" placeholder="Anything you'd hand off or investigate further"></textarea>
+    <div class="btn-row">
+      <button class="danger" name="disposition" value="malicious" type="submit">Escalate &mdash; malicious</button>
+      <button class="safe" name="disposition" value="benign" type="submit">Close &mdash; benign</button>
+    </div>
+    <p class="muted" style="margin-top:12px">The verdict and ground truth stay hidden until you decide.</p>
+  </form>
+{% endif %}
+{% endblock %}
