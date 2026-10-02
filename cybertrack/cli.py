@@ -11,6 +11,9 @@ from sqlalchemy import delete, select
 from .db import get_int_setting, get_session, set_setting, today
 from .models import (
     Alert,
+    Case,
+    CaseNote,
+    CaseTask,
     CurriculumItem,
     DailyPlan,
     ReviewState,
@@ -98,12 +101,12 @@ def demo(days: int):
 
 
 @click.command("reset")
-@click.confirmation_option(prompt="Delete all alerts, triage, turnover, study logs, and plans?")
+@click.confirmation_option(prompt="Delete all alerts, triage, cases, turnover, study logs, and plans?")
 @with_appcontext
 def reset():
     """Wipe activity but keep the curriculum. Use before a fresh start."""
     session = get_session()
-    for model in (Triage, Alert, Turnover, StudyLog, ReviewState, DailyPlan):
+    for model in (CaseNote, CaseTask, Case, Triage, Alert, Turnover, StudyLog, ReviewState, DailyPlan):
         session.execute(delete(model))
     session.commit()
     click.echo("Activity cleared. Curriculum kept.")

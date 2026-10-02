@@ -10,6 +10,7 @@ from .. import analytics, viz
 from ..db import get_int_setting, get_session, today
 from ..models import Alert, CurriculumItem, StudyLog, Triage, Turnover
 from ..planner import ensure_today, previous_turnover
+from ..soc.cases import open_cases
 from ..soc.generator import metrics
 
 bp = Blueprint("dashboard", __name__)
@@ -91,4 +92,5 @@ def home():
         days=days,
         techniques=analytics.techniques(session, day - timedelta(days=6)),
         cwe_phase=cwe_phase,
+        open_cases=open_cases(session),
     )

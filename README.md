@@ -29,6 +29,17 @@ build familiarity with how real analyst tooling looks and moves.
   `-enc`, URL, hex) that can grab the encoded blob straight from the event.
 - **Every decision is graded** against a hidden answer key. You see what gave it away, the
   analysis, a response playbook, and prior cases from the same detection to compare.
+- **Cases**: escalating an alert opens an incident case automatically. Each case walks the
+  NIST SP 800-61 lifecycle (detection, containment, eradication, recovery, lessons learned)
+  with a stepper, a response-task checklist seeded from the detection's playbook, and a
+  notes timeline stamped with the current stage. To close a case, move it to Lessons
+  learned and submit a six-section incident report: executive summary, timeline, scope
+  and impact, IOCs, root cause, and recommendations. A transparent rubric grades the
+  report 0-100. It checks that each section is complete, that the timeline has
+  time-stamped entries, how many of the event's indicators you cite (defanged forms
+  count), and whether your recommendations cover the playbook. You can resubmit as often
+  as you like. Escalating benign activity opens a false-positive case instead, which you
+  close with a short note.
 - **Shift Turnover** auto-fills shift stats: worked, accuracy, missed threats, MTTT and
   backlog. Your open items carry into the next day's queue.
 - **Analytics** charts accuracy over time against an 80% target. It also shows a confusion
@@ -70,7 +81,7 @@ source!=proxy verdict=wrong
 | Key | Action |
 |---|---|
 | `/` | Focus search |
-| `g` then `p` `r` `t` `a` `s` | Go to posture, review, turnover, analytics, or training |
+| `g` then `p` `r` `c` `t` `a` `s` | Go to posture, review, cases, turnover, analytics, or training |
 | `j` / `k`, `Enter` | Move through the queue, open an alert |
 | `e` / `c` | Escalate or close the open alert (prompts for a reason first) |
 | `n` | Next open alert |
@@ -101,7 +112,7 @@ Review** at a few minutes per alert, do **Today's Block**, then write **Shift Tu
 ```bash
 flask --app cybertrack seed        # load the curriculum (idempotent)
 flask --app cybertrack demo --days 21  # fabricate past shifts + study for a populated UI
-flask --app cybertrack reset       # wipe activity, keep the curriculum
+flask --app cybertrack reset       # wipe activity and cases, keep the curriculum
 pytest                             # run the test suite
 ```
 

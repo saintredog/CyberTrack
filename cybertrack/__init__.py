@@ -58,27 +58,35 @@ def create_app(config: dict | None = None) -> Flask:
             return f"{value:.1f}m"
         return f"{value / 60:.1f}h"
 
+    from .soc.cases import STAGE_LABELS, STAGE_SHORT, STAGES, age, score_band
     from .soc.fields import highlight
     from .viz import TRACK_COLORS, URGENCY_COLORS
 
     app.add_template_filter(highlight, "highlight")
+    app.add_template_filter(age, "age")
+    app.add_template_filter(score_band, "band")
 
     @app.context_processor
     def _inject_shell():
         from sqlalchemy import func, select
 
-        from .models import Alert
+        from .models import Alert, Case
 
-        ctx = {"today": db.today(), "URGENCY_COLORS": URGENCY_COLORS, "TRACK_COLORS": TRACK_COLORS}
+        ctx = {
+            "today": db.today(), "URGENCY_COLORS": URGENCY_COLORS, "TRACK_COLORS": TRACK_COLORS,
+            "CASE_STAGES": STAGES, "STAGE_LABELS": STAGE_LABELS, "STAGE_SHORT": STAGE_SHORT,
+        }
         try:
             s = db.get_session()
             ctx["nav_open"] = s.scalar(select(func.count()).select_from(Alert).where(Alert.status == "new"))
+            ctx["nav_cases"] = s.scalar(select(func.count()).select_from(Case).where(Case.status == "open"))
             name = db.get_setting(s, "analyst_name")
             ctx["analyst_name"] = name
             ctx["analyst_initials"] = "".join(p[0] for p in name.split()[:2]).upper() or "A"
             ctx["nav_cwe_phase"] = db.get_int_setting(s, "cwe_phase")
         except Exception:  # never let the chrome break a page
             ctx.setdefault("nav_open", 0)
+            ctx.setdefault("nav_cases", 0)
             ctx.setdefault("analyst_name", "Analyst")
             ctx.setdefault("analyst_initials", "A")
             ctx.setdefault("nav_cwe_phase", 1)

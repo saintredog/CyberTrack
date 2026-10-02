@@ -1,7 +1,7 @@
 """Database models for CyberTrack.
 
 Two halves share one SQLite file:
-- SOC side: Alert, Triage, Turnover
+- SOC side: Alert, Triage, Turnover, and incident cases (Case, CaseTask, CaseNote)
 - Study side: CurriculumItem, ReviewState, StudyLog
 DailyPlan ties a day's alerts and study items together, and Setting holds
 small user preferences such as the current CWE phase.
@@ -44,6 +44,7 @@ class Alert(Base):
     first_viewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     triage: Mapped["Triage | None"] = relationship(back_populates="alert", uselist=False)
+    case: Mapped["Case | None"] = relationship(back_populates="alert", uselist=False)
 
 
 class Triage(Base):
@@ -69,6 +70,87 @@ class Turnover(Base):
     summary: Mapped[str] = mapped_column(Text)
     open_items: Mapped[list] = mapped_column(JSON, default=list)
     written_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+CASE_STAGES = ["detection", "containment", "eradication", "recovery", "lessons"]
+
+
+class Case(Base):
+    """An incident opened from an escalated alert and worked through the IR lifecycle.
+
+    Stages follow NIST SP 800-61: detection, containment, eradication, recovery,
+    lessons (learned). The six report fields are the incident report the analyst
+    writes; it is graded by cybertrack/soc/cases.py.
+    """
+
+    __tablename__ = "cases"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"), unique=True)
+    title: Mapped[str] = mapped_column(String(200))
+    severity: Mapped[str] = mapped_column(String(16))
+    opened_at: Mapped[datetime] = mapped_column(DateTime)
+    opened_on: Mapped[date] = mapped_column(Date, index=True)
+    stage: Mapped[str] = mapped_column(String(16), default="detection")
+    status: Mapped[str] = mapped_column(String(16), default="open", index=True)  # open | closed
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    closing_note: Mapped[str] = mapped_column(Text, default="")
+    # Escalated, but the alert's ground truth is benign.
+    false_positive: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    summary: Mapped[str] = mapped_column(Text, default="")
+    timeline: Mapped[str] = mapped_column(Text, default="")
+    scope_impact: Mapped[str] = mapped_column(Text, default="")
+    iocs: Mapped[str] = mapped_column(Text, default="")
+    root_cause: Mapped[str] = mapped_column(Text, default="")
+    recommendations: Mapped[str] = mapped_column(Text, default="")
+    report_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    report_feedback: Mapped[list] = mapped_column(JSON, default=list)
+    report_submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    alert: Mapped[Alert] = relationship(back_populates="case")
+    tasks: Mapped[list["CaseTask"]] = relationship(
+        back_populates="case", order_by="CaseTask.id", cascade="all, delete-orphan"
+    )
+    notes: Mapped[list["CaseNote"]] = relationship(
+        back_populates="case", order_by="CaseNote.created_at.desc(), CaseNote.id.desc()", cascade="all, delete-orphan"
+    )
+
+    @property
+    def ref(self) -> str:
+        return f"IR-{self.id:04d}"
+
+    @property
+    def tasks_done(self) -> int:
+        return sum(1 for t in self.tasks if t.done)
+
+    @property
+    def stage_index(self) -> int:
+        return CASE_STAGES.index(self.stage) if self.stage in CASE_STAGES else 0
+
+
+class CaseTask(Base):
+    __tablename__ = "case_tasks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    label: Mapped[str] = mapped_column(Text)
+    done: Mapped[bool] = mapped_column(Boolean, default=False)
+    done_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    case: Mapped[Case] = relationship(back_populates="tasks")
+
+
+class CaseNote(Base):
+    __tablename__ = "case_notes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    stage: Mapped[str] = mapped_column(String(16))  # the case's stage when the note was written
+    body: Mapped[str] = mapped_column(Text)
+
+    case: Mapped[Case] = relationship(back_populates="notes")
 
 
 # ------------------------------------------------------------------------- Study

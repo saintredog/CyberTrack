@@ -67,7 +67,8 @@
           <td class="time hide-sm">{{ a.created_at|dt('%H:%M:%S') }}<small>{{ a.shift_date.strftime('%a %d %b') }}</small></td>
           <td>{{ ui.urg(a.severity) }}</td>
           <td><a class="title" href="{{ url_for('soc.alert_detail', alert_id=a.id) }}">{{ a.title }}</a>
-              <div class="hint-line" style="margin:2px 0 0">{{ labels.get(a.scenario, a.scenario) }} &middot; #{{ '%05d'|format(a.id) }}<span class="show-sm"> &middot; {{ a.created_at|dt('%H:%M') }} {{ a.shift_date.strftime('%d %b') }}</span></div></td>
+              <div class="hint-line" style="margin:2px 0 0">{{ labels.get(a.scenario, a.scenario) }} &middot; #{{ '%05d'|format(a.id) }}<span class="show-sm"> &middot; {{ a.created_at|dt('%H:%M') }} {{ a.shift_date.strftime('%d %b') }}</span>
+                {%- set cr = case_refs.get(a.id) %}{% if cr %} &middot; <a class="case-link" href="{{ url_for('soc.case_detail', case_id=cr[0]) }}" title="Open incident case">{{ ui.icon('case', 'sm') }}{{ cr[1] }}</a>{% endif %}</div></td>
           <td class="hide-sm"><span class="tag src">{{ a.source }}</span></td>
           <td class="hide-sm"><span class="tag attack">{{ a.technique }}</span></td>
           <td class="hide-sm">{{ ui.status(a.status) }}</td>

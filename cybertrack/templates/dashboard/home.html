@@ -103,6 +103,31 @@
   </div>
 </div>
 
+<div class="panel" style="margin-bottom:16px">
+  {% call ui.panel_h('Open cases', open_cases|length ~ ' in progress', 'case') %}
+    <div class="actions"><a class="btn sm" href="{{ url_for('soc.cases') }}">All cases {{ ui.icon('arrow', 'sm') }}</a></div>
+  {% endcall %}
+  {% if open_cases %}
+    <div class="list">
+      {% for c in open_cases[:6] %}
+      <a class="li" href="{{ url_for('soc.case_detail', case_id=c.id) }}">
+        {{ ui.urg(c.severity) }}
+        <span class="grow">
+          <div class="t">{{ c.title }}</div>
+          <div class="s">{{ c.ref }} &middot; {{ c.tasks_done }}/{{ c.tasks|length }} tasks &middot; age {{ c.opened_at|age }} &middot;
+            {% if c.false_positive %}<span class="fp-mark">false positive</span>, close with a note{% elif c.report_score is not none %}report {{ c.report_score }}/100{% else %}report not submitted{% endif %}</div>
+        </span>
+        {% if not c.false_positive %}<span class="stage-cell hide-xs">{{ ui.stage_mini(c) }}<span>{{ STAGE_SHORT[c.stage] }}</span></span>{% endif %}
+        {{ ui.icon('chev', 'sm') }}
+      </a>
+      {% endfor %}
+    </div>
+    {% if open_cases|length > 6 %}<div class="panel-b hint-line" style="margin:0;border-top:1px solid var(--line)">{{ open_cases|length - 6 }} more on the <a href="{{ url_for('soc.cases') }}">Cases</a> page.</div>{% endif %}
+  {% else %}
+    <div class="empty" style="padding:18px 16px"><b>No open cases</b>Escalating a malicious alert opens one here.</div>
+  {% endif %}
+</div>
+
 <div class="row c2">
   <div class="panel">
     {% call ui.panel_h("Today's queue", shift_open|length ~ ' open of ' ~ alerts_total, 'review') %}

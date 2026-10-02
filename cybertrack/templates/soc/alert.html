@@ -132,7 +132,18 @@
             <div class="k">Status</div><div class="v">{{ ui.status(alert.status) }}</div>
             <div class="k">Owner</div><div class="v">{{ analyst_name }}</div>
             <div class="k">Decided</div><div class="v">{{ alert.triage.decided_at|dt('%d %b %H:%M') }}</div>
+            {% if alert.case %}
+            <div class="k">Case</div>
+            <div class="v" style="white-space:nowrap"><a class="case-link" href="{{ url_for('soc.case_detail', case_id=alert.case.id) }}">{{ ui.icon('case', 'sm') }}{{ alert.case.ref }}</a> <span class="owner">{{ alert.case.status }}</span></div>
+            {% endif %}
           </div>
+          {% if alert.case %}
+            <a class="btn lg" href="{{ url_for('soc.case_detail', case_id=alert.case.id) }}">{{ ui.icon('case', 'sm') }}{{ 'Work' if alert.case.status == 'open' else 'View' }} case {{ alert.case.ref }}</a>
+          {% elif alert.status == 'escalated' %}
+            <form method="post" action="{{ url_for('soc.open_alert_case', alert_id=alert.id) }}">
+              <button class="btn lg" type="submit">{{ ui.icon('case', 'sm') }}Open incident case</button>
+            </form>
+          {% endif %}
           {% if next_id %}
             <a class="btn lg primary" href="{{ url_for('soc.alert_detail', alert_id=next_id) }}">Next open alert {{ ui.icon('arrow', 'sm') }}</a>
           {% else %}

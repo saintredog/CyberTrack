@@ -9,7 +9,12 @@
 {%- endmacro %}
 
 {% macro status(s) -%}
-<span class="status {{ s }}">{{ {'new': 'New', 'escalated': 'Escalated', 'closed': 'Closed'}.get(s, s) }}</span>
+<span class="status {{ s }}">{{ {'new': 'New', 'escalated': 'Escalated', 'closed': 'Closed', 'open': 'Open'}.get(s, s) }}</span>
+{%- endmacro %}
+
+{# Five-segment IR lifecycle indicator for a case. Always paired with the stage name in text. #}
+{% macro stage_mini(c) -%}
+<span class="mini-steps" aria-hidden="true">{% for n in range(5) %}<i class="{{ 'on' if n < c.stage_index or c.status == 'closed' else 'cur' if n == c.stage_index }}"></i>{% endfor %}</span>
 {%- endmacro %}
 
 {% macro spark(s, end_color='#3987e5') -%}
@@ -94,13 +99,13 @@
 </div>
 {%- endmacro %}
 
-{% macro ring(r, color, label) -%}
+{% macro ring(r, color, label, text=none) -%}
 <svg width="{{ r.size }}" height="{{ r.size }}" viewBox="0 0 {{ r.size }} {{ r.size }}" role="img" aria-label="{{ label }}: {{ r.pct }} percent">
   <circle cx="{{ r.size / 2 }}" cy="{{ r.size / 2 }}" r="{{ r.r }}" fill="none" stroke="{{ color }}" stroke-opacity="0.2" stroke-width="{{ r.stroke }}"/>
   <circle cx="{{ r.size / 2 }}" cy="{{ r.size / 2 }}" r="{{ r.r }}" fill="none" stroke="{{ color }}" stroke-width="{{ r.stroke }}"
           stroke-linecap="round" stroke-dasharray="{{ r.c }}" stroke-dashoffset="{{ r.offset if r.pct else r.c }}"
           transform="rotate(-90 {{ r.size / 2 }} {{ r.size / 2 }})"/>
-  <text class="rn" x="50%" y="50%" dy="5" text-anchor="middle">{{ r.pct }}%</text>
+  <text class="rn" x="50%" y="50%" dy="5" text-anchor="middle">{{ text if text is not none else r.pct ~ '%' }}</text>
 </svg>
 {%- endmacro %}
 

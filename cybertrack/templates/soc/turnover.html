@@ -37,7 +37,28 @@
     </form>
   </div>
 
-  <div style="display:grid;gap:16px;align-content:start">
+  <div style="display:grid;gap:16px;align-content:start;min-width:0">
+    <div class="panel" id="case-items">
+      {% call ui.panel_h('Open cases', 'suggested open items', 'case') %}
+        {% if case_items %}<div class="actions"><button class="btn sm" type="button" data-add-all>Add all</button></div>{% endif %}
+      {% endcall %}
+      {% if case_items %}
+        <div class="list">
+          {% for c, line in case_items %}
+            <div class="li">
+              <span class="grow">
+                <a class="t" href="{{ url_for('soc.case_detail', case_id=c.id) }}" style="color:var(--ink)">{{ c.ref }} {{ c.title }}</a>
+                <div class="s">{{ ui.urg(c.severity, false) }} &middot; {{ 'False positive' if c.false_positive else STAGE_LABELS[c.stage] }} &middot; {{ c.tasks_done }}/{{ c.tasks|length }} tasks &middot; {% if c.false_positive %}needs closing note{% elif c.report_score is not none %}report {{ c.report_score }}/100{% else %}report not submitted{% endif %}</div>
+              </span>
+              <button class="btn sm ghost" type="button" data-add-item="{{ line }}" title="Add to open items">+ Add</button>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="panel-b hint-line" style="margin:0;border-top:1px solid var(--line)">Open cases carry to the next shift. Add them to your open items so the handoff says where each one stands.</div>
+      {% else %}
+        <div class="empty">No open cases to hand off.</div>
+      {% endif %}
+    </div>
     <div class="panel">
       {% call ui.panel_h('Escalated today', escalated|length ~ ' event' ~ ('' if escalated|length == 1 else 's'), 'alert') %}{% endcall %}
       {% if escalated %}

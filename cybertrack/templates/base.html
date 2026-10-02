@@ -31,6 +31,9 @@
   <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3L2 20h20z"/><path d="M12 10v4.5M12 17.2v.1"/></symbol>
   <symbol id="i-handoff" viewBox="0 0 24 24"><path d="M4 12h12M12 6l6 6-6 6"/><path d="M20 4v16"/></symbol>
   <symbol id="i-pivot" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5M11 8v6M8 11h6"/></symbol>
+  <symbol id="i-case" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V4.8h6V7"/><path d="M3 12.5h18"/><path d="M11 12.5v2h2v-2"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol>
 </svg>
 
 <div class="app">
@@ -47,6 +50,9 @@
       <a href="{{ url_for('soc.queue') }}" class="{{ 'active' if ep in ('soc.queue', 'soc.alert_detail') }}">
         <svg class="ico"><use href="#i-review"/></svg>Incident Review
         <span class="count {{ 'zero' if not nav_open }}" title="open notables">{{ nav_open }}</span></a>
+      <a href="{{ url_for('soc.cases') }}" class="{{ 'active' if ep in ('soc.cases', 'soc.case_detail') }}">
+        <svg class="ico"><use href="#i-case"/></svg>Cases
+        <span class="count warn {{ 'zero' if not nav_cases }}" title="open cases">{{ nav_cases }}</span></a>
       <div class="nav-label">Operations</div>
       <a href="{{ url_for('soc.turnover') }}" class="{{ 'active' if ep == 'soc.turnover' }}">
         <svg class="ico"><use href="#i-turnover"/></svg>Shift Turnover</a>
@@ -100,7 +106,7 @@
     <div class="panel-h"><h3 id="help-title">Keyboard shortcuts</h3><div class="actions"><button class="icon-btn" type="button" data-help aria-label="Close"><svg class="ico sm"><use href="#i-x"/></svg></button></div></div>
     <div class="panel-b keys">
       <kbd>/</kbd><span>Focus the search bar</span>
-      <kbd>g</kbd><span>then <kbd>p</kbd> posture, <kbd>r</kbd> incident review, <kbd>t</kbd> turnover, <kbd>a</kbd> analytics, <kbd>s</kbd> training</span>
+      <kbd>g</kbd><span>then <kbd>p</kbd> posture, <kbd>r</kbd> incident review, <kbd>c</kbd> cases, <kbd>t</kbd> turnover, <kbd>a</kbd> analytics, <kbd>s</kbd> training</span>
       <kbd>j</kbd> <span><kbd>k</kbd> move through the queue, <kbd>Enter</kbd> opens</span>
       <kbd>e</kbd><span>Escalate the open alert (needs a reason)</span>
       <kbd>c</kbd><span>Close the open alert as benign (needs a reason)</span>

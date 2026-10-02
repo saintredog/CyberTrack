@@ -90,7 +90,7 @@
   $$('.chart-scroll, .heat').forEach((el) => { el.scrollLeft = el.scrollWidth; });
 
   // ---------------------------------------------------------------- queue rows
-  const rows = $$("#queue tr.ev");
+  const rows = $$("#queue tr.ev, #cases tr.ev");
   let sel = -1;
   function select(i) {
     if (!rows.length) return;
@@ -147,7 +147,7 @@
   help && help.addEventListener("click", (e) => { if (e.target === help) help.classList.remove("on"); });
 
   let gPrefix = false;
-  const gMap = { p: "/", r: "/soc/", t: "/soc/turnover", a: "/soc/metrics", s: "/study/", b: "/study/today" };
+  const gMap = { p: "/", r: "/soc/", c: "/soc/cases", t: "/soc/turnover", a: "/soc/metrics", s: "/study/", b: "/study/today" };
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === "Escape") {
@@ -174,6 +174,40 @@
       case "n": { const nx = $("#next-alert"); if (nx) window.location = nx.href; break; }
     }
   });
+
+  // ---------------------------------------------------------------- incident report
+  // Live length counter per section, against the rubric's minimum.
+  $$("textarea[data-minlen]").forEach((ta) => {
+    const cc = $(`[data-cc="${ta.id}"]`);
+    if (!cc) return;
+    const min = parseInt(ta.dataset.minlen, 10) || 0;
+    const update = () => {
+      const n = ta.value.trim().length;
+      cc.textContent = n ? `${n} / ${min} min` : `min ${min} chars`;
+      cc.classList.toggle("ok", n >= min);
+    };
+    ta.addEventListener("input", update);
+    update();
+  });
+
+  // ---------------------------------------------------------------- turnover
+  // Suggested open items (open cases) append to the open-items box as plain text.
+  const openItems = $("#open_items");
+  function addItem(text) {
+    if (!openItems || !text) return;
+    const lines = openItems.value.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (!lines.includes(text)) lines.push(text);
+    openItems.value = lines.join("\n");
+  }
+  $$("[data-add-item]").forEach((b) => b.addEventListener("click", () => {
+    addItem(b.getAttribute("data-add-item"));
+    b.textContent = "Added";
+    b.disabled = true;
+  }));
+  $$("[data-add-all]").forEach((b) => b.addEventListener("click", () => {
+    $$("[data-add-item]").forEach((x) => { if (!x.disabled) x.click(); });
+    if (openItems) openItems.focus();
+  }));
 
   // ---------------------------------------------------------------- decoder
   const decIn = $("#dec-in"), decOut = $("#dec-out"), decMode = $("#dec-mode"), decGrab = $("#dec-grab");
